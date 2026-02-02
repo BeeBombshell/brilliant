@@ -71,9 +71,9 @@ export function NewEventDialog() {
     const start = startFromInput ?? parseISO(draft.startDate);
     const end = endFromInput ?? parseISO(draft.endDate);
 
-    // Ensure at least 30 minutes
+    // Ensure end is after start (default to 15 minutes if not)
     if (end <= start) {
-      end.setMinutes(start.getMinutes() + 30);
+      end.setMinutes(start.getMinutes() + 15);
     }
 
     addEvent({

@@ -23,12 +23,15 @@ const dotColorClasses: Record<EventColor, string> = {
   gray: "fill-slate-600",
 };
 
+const DRAG_THRESHOLD = 5; // pixels - minimum movement to be considered a drag
+
 export function CalendarDayView() {
   const [selectedDate] = useAtom(selectedDateAtom);
   const [events] = useAtom(eventsAtom);
   const [, setDraft] = useAtom(newEventDraftAtom);
   const [dragStartY, setDragStartY] = useState<number | null>(null);
   const [dragCurrentY, setDragCurrentY] = useState<number | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
 
   const dayStart = new Date(
@@ -55,6 +58,7 @@ export function CalendarDayView() {
     const y = event.clientY - rect.top + container.scrollTop;
     setDragStartY(y);
     setDragCurrentY(y);
+    setIsDragging(false); // Reset dragging state
     container.setPointerCapture(event.pointerId);
   };
 
@@ -64,6 +68,11 @@ export function CalendarDayView() {
     const rect = container.getBoundingClientRect();
     const y = event.clientY - rect.top + container.scrollTop;
     setDragCurrentY(y);
+
+    // Only set isDragging to true if we've moved beyond the threshold
+    if (!isDragging && Math.abs(y - dragStartY) > DRAG_THRESHOLD) {
+      setIsDragging(true);
+    }
   };
 
   const handlePointerUp: React.PointerEventHandler<HTMLDivElement> = event => {
@@ -72,38 +81,43 @@ export function CalendarDayView() {
       container.releasePointerCapture(event.pointerId);
       setDragStartY(null);
       setDragCurrentY(null);
+      setIsDragging(false);
       return;
     }
 
-    const startY = Math.min(dragStartY, dragCurrentY);
-    const endY = Math.max(dragStartY, dragCurrentY);
+    // Only create an event if we actually dragged (beyond threshold)
+    if (isDragging) {
+      const startY = Math.min(dragStartY, dragCurrentY);
+      const endY = Math.max(dragStartY, dragCurrentY);
 
-    const totalHeight = container.scrollHeight;
-    const startMinutes = (startY / totalHeight) * minutesInDay;
-    const endMinutes = (endY / totalHeight) * minutesInDay;
+      const totalHeight = container.scrollHeight;
+      const startMinutes = (startY / totalHeight) * minutesInDay;
+      const endMinutes = (endY / totalHeight) * minutesInDay;
 
-    const snapTo = 30;
-    const snappedStart = Math.floor(startMinutes / snapTo) * snapTo;
-    const snappedEnd = Math.max(
-      snappedStart + snapTo,
-      Math.ceil(endMinutes / snapTo) * snapTo
-    );
+      const snapTo = 30;
+      const snappedStart = Math.floor(startMinutes / snapTo) * snapTo;
+      const snappedEnd = Math.max(
+        snappedStart + snapTo,
+        Math.ceil(endMinutes / snapTo) * snapTo
+      );
 
-    const startDate = new Date(dayStart.getTime() + snappedStart * 60000);
-    const endDate = new Date(dayStart.getTime() + snappedEnd * 60000);
+      const startDate = new Date(dayStart.getTime() + snappedStart * 60000);
+      const endDate = new Date(dayStart.getTime() + snappedEnd * 60000);
 
-    setDraft({
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString(),
-    });
+      setDraft({
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+      });
+    }
 
     container.releasePointerCapture(event.pointerId);
     setDragStartY(null);
     setDragCurrentY(null);
+    setIsDragging(false);
   };
 
   const dragOverlay =
-    dragStartY != null && dragCurrentY != null
+    isDragging && dragStartY != null && dragCurrentY != null
       ? {
         top: Math.min(dragStartY, dragCurrentY),
         height: Math.abs(dragCurrentY - dragStartY),
@@ -175,7 +189,7 @@ export function CalendarDayView() {
                   const end = parseISO(event.endDate);
                   const topMinutes = differenceInMinutes(start, dayStart);
                   const durationMinutes = Math.max(
-                    30,
+                    15, // Minimum 15 minutes for display purposes only
                     differenceInMinutes(end, start)
                   );
 
@@ -186,13 +200,25 @@ export function CalendarDayView() {
                     <button
                       key={event.id}
                       onClick={() => setSelectedEvent(event)}
-                      className="absolute left-1 right-1 overflow-hidden rounded-md border border-border bg-muted/50 px-2 pt-1 pb-2 text-left text-xs text-foreground transition-all hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      onPointerDown={(e) => {
+                        // Stop propagation to prevent the grid's drag handler from firing
+                        e.stopPropagation();
+                      }}
+                      onPointerMove={(e) => {
+                        // Stop propagation to prevent the grid's drag handler from firing
+                        e.stopPropagation();
+                      }}
+                      onPointerUp={(e) => {
+                        // Stop propagation to prevent the grid's drag handler from firing
+                        e.stopPropagation();
+                      }}
+                      className="absolute flex left-1 right-1 overflow-hidden rounded-md border border-border bg-muted/50 px-2 pt-1 pb-2 text-left text-xs text-foreground transition-all hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                       style={{
                         top: `${topPercent}%`,
                         height: `${heightPercent}%`,
                       }}
                     >
-                      <div className="flex items-start gap-1.5">
+                      <div className="flex items-start gap-1.5 mt-2">
                         <svg width="8" height="8" viewBox="0 0 8 8" className={`shrink-0 ${dotColorClasses[event.color]}`}>
                           <circle cx="4" cy="4" r="4" />
                         </svg>

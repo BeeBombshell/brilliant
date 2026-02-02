@@ -1,11 +1,15 @@
-import { ComponentExample } from "@/components/component-example";
+import { ChatPane } from "@/components/chat/ChatPane";
+import { CalendarRoot } from "@/components/calendar/CalendarRoot";
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-background text-foreground p-8">
-      <h1 className="text-4xl font-bold mb-4">Brilliant App</h1>
-      <p className="text-muted-foreground mb-8">Welcome to your new React application with React Router.</p>
-      <ComponentExample />
+    <div className="flex min-h-[calc(100vh-3.5rem)] bg-background text-foreground">
+      <div className="flex w-1/3 min-w-[280px] max-w-md flex-col border-r bg-muted/30">
+        <ChatPane />
+      </div>
+      <div className="flex flex-1 flex-col">
+        <CalendarRoot />
+      </div>
     </div>
   );
 }

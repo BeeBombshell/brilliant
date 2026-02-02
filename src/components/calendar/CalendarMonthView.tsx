@@ -2,6 +2,17 @@ import { startOfMonth, endOfMonth, addDays, eachDayOfInterval, parseISO, isSameD
 import { useAtom } from "jotai";
 
 import { selectedDateAtom, eventsAtom } from "@/state/calendarAtoms";
+import type { EventColor } from "@/types/calendar";
+
+const colorPillClasses: Record<EventColor, string> = {
+  blue: "bg-blue-500/15 text-blue-900 dark:text-blue-100",
+  green: "bg-green-500/15 text-green-900 dark:text-green-100",
+  red: "bg-red-500/15 text-red-900 dark:text-red-100",
+  yellow: "bg-yellow-400/20 text-yellow-900 dark:text-yellow-100",
+  purple: "bg-purple-500/15 text-purple-900 dark:text-purple-100",
+  orange: "bg-orange-500/15 text-orange-900 dark:text-orange-100",
+  gray: "bg-neutral-400/15 text-neutral-900 dark:text-neutral-100",
+};
 
 export function CalendarMonthView() {
   const [selectedDate] = useAtom(selectedDateAtom);
@@ -46,7 +57,7 @@ export function CalendarMonthView() {
               {dayEvents.map(event => (
                 <div
                   key={event.id}
-                  className="truncate rounded-md bg-primary/10 px-1 py-0.5 text-[0.7rem]"
+                  className={`truncate rounded-md px-1 py-0.5 text-[0.7rem] ${colorPillClasses[event.color]}`}
                 >
                   {event.title}
                 </div>

@@ -3,10 +3,21 @@ import { parseISO, differenceInMinutes } from "date-fns";
 import { useAtom } from "jotai";
 
 import { selectedDateAtom, eventsAtom, newEventDraftAtom } from "@/state/calendarAtoms";
+import type { EventColor } from "@/types/calendar";
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 const minutesInDay = 24 * 60;
+
+const colorClasses: Record<EventColor, string> = {
+  blue: "border-blue-500/50 bg-blue-500/15",
+  green: "border-green-500/50 bg-green-500/15",
+  red: "border-red-500/50 bg-red-500/15",
+  yellow: "border-yellow-400/60 bg-yellow-400/15",
+  purple: "border-purple-500/50 bg-purple-500/15",
+  orange: "border-orange-500/50 bg-orange-500/15",
+  gray: "border-neutral-400/60 bg-neutral-400/15",
+};
 
 export function CalendarDayView() {
   const [selectedDate] = useAtom(selectedDateAtom);
@@ -143,7 +154,7 @@ export function CalendarDayView() {
             return (
               <div
                 key={event.id}
-                className="absolute left-1 right-1 rounded-md border bg-primary/20 px-2 py-1 text-xs"
+                className={`absolute left-1 right-1 rounded-md px-2 py-1 text-xs ${colorClasses[event.color]}`}
                 style={{
                   top: `${topPercent}%`,
                   height: `${heightPercent}%`,

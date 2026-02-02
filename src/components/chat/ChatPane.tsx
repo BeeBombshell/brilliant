@@ -35,14 +35,14 @@ export function ChatPane() {
   const orderedMessages = useMemo(() => mockMessages, []);
 
   return (
-    <Card className="flex h-full flex-col border-none bg-card/60 shadow-none">
-      <div className="border-b px-4 py-2 text-sm font-semibold">
+    <Card className="flex h-full flex-col border-l-0 border-t-0 rounded-none bg-card/80 shadow-none">
+      <div className="border-b px-4 py-3 text-sm font-semibold">
         Brilliant Planner
       </div>
       <div className="flex flex-1 flex-col gap-3 p-3">
-        <div className="flex-1 overflow-hidden rounded-md border bg-background/60">
+        <div className="flex-1 overflow-hidden rounded-md border bg-background/80">
           <div className="flex h-full flex-col gap-3 overflow-y-auto p-3">
-            <div className="space-y-3 text-sm">
+            <div className="space-y-3 text-sm leading-relaxed">
               {orderedMessages.map(msg => (
                 <div
                   key={msg.id}
@@ -65,7 +65,7 @@ export function ChatPane() {
           </div>
         </div>
 
-        <Card className="space-y-2 bg-background/60 p-3">
+        <Card className="space-y-2 bg-background/80 p-3">
           <div className="text-[0.7rem] font-medium uppercase text-muted-foreground">
             Recent changes
           </div>

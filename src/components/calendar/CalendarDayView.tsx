@@ -1,22 +1,25 @@
 import { useState } from "react";
-import { parseISO, differenceInMinutes, format } from "date-fns";
+import { parseISO, differenceInMinutes, format, isToday } from "date-fns";
 import { useAtom } from "jotai";
 
 import { selectedDateAtom, eventsAtom, newEventDraftAtom } from "@/state/calendarAtoms";
-import type { EventColor } from "@/types/calendar";
+import { CurrentTimeIndicator } from "@/components/calendar/CurrentTimeIndicator";
+import { EventDetailsDialog } from "@/components/calendar/EventDetailsDialog";
+import { HappeningNowSidebar } from "@/components/calendar/HappeningNowSidebar";
+import type { EventColor, CalendarEvent } from "@/types/calendar";
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const minutesInDay = 24 * 60;
 const HOUR_HEIGHT = 96; // 96px per hour (Big Calendar standard)
 
 const colorClasses: Record<EventColor, string> = {
-  blue: "border border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300",
-  green: "border border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-300",
-  red: "border border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300",
-  yellow: "border border-yellow-200 bg-yellow-50 text-yellow-700 dark:border-yellow-800 dark:bg-yellow-950 dark:text-yellow-300",
-  purple: "border border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-800 dark:bg-purple-950 dark:text-purple-300",
+  blue: "border border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300",
+  green: "border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
+  red: "border border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950 dark:text-rose-300",
+  yellow: "border border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300",
+  purple: "border border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-800 dark:bg-violet-950 dark:text-violet-300",
   orange: "border border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-300",
-  gray: "border border-neutral-200 bg-neutral-50 text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300",
+  gray: "border border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300",
 };
 
 export function CalendarDayView() {
@@ -25,6 +28,7 @@ export function CalendarDayView() {
   const [, setDraft] = useAtom(newEventDraftAtom);
   const [dragStartY, setDragStartY] = useState<number | null>(null);
   const [dragCurrentY, setDragCurrentY] = useState<number | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
 
   const dayStart = new Date(
     selectedDate.getFullYear(),
@@ -106,8 +110,15 @@ export function CalendarDayView() {
       : null;
 
   return (
-    <div className="flex h-full flex-col overflow-auto bg-background">
-      <div className="flex min-w-full flex-1">
+    <>
+      <EventDetailsDialog
+        event={selectedEvent}
+        open={!!selectedEvent}
+        onClose={() => setSelectedEvent(null)}
+      />
+      <div className="flex h-full overflow-hidden bg-background">
+        <div className="flex flex-1 flex-col overflow-auto">
+          <div className="flex min-w-full flex-1">
         {/* Hour labels column */}
         <div className="sticky left-0 z-30 w-18 flex-none border-r bg-background text-right text-xs text-muted-foreground">
           {HOURS.map((hour, index) => (
@@ -154,6 +165,9 @@ export function CalendarDayView() {
               />
             )}
 
+            {/* Current time indicator */}
+            {isToday(selectedDate) && <CurrentTimeIndicator hourHeight={HOUR_HEIGHT} />}
+
             {/* Events */}
             {dayEvents.map(event => {
               const start = parseISO(event.startDate);
@@ -168,27 +182,32 @@ export function CalendarDayView() {
               const heightPercent = (durationMinutes / minutesInDay) * 100;
 
               return (
-                <div
+                <button
                   key={event.id}
-                  className={`absolute left-1 right-1 rounded-md px-2 py-1.5 text-xs ${colorClasses[event.color]}`}
+                  onClick={() => setSelectedEvent(event)}
+                  className={`absolute left-1 right-1 overflow-hidden rounded-md px-2 py-1.5 text-left text-xs transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${colorClasses[event.color]}`}
                   style={{
                     top: `${topPercent}%`,
                     height: `${heightPercent}%`,
                   }}
                 >
-                  <div className="font-semibold">{event.title}</div>
+                  <div className="truncate font-semibold">{event.title}</div>
                   {durationMinutes > 25 && event.description && (
-                    <div className="mt-0.5 text-[0.7rem] opacity-80">
+                    <div className="mt-0.5 line-clamp-2 text-[0.7rem] opacity-80">
                       {event.description}
                     </div>
                   )}
-                </div>
+                </button>
               );
             })}
           </div>
+          </div>
         </div>
       </div>
+
+      <HappeningNowSidebar events={events} onEventClick={setSelectedEvent} />
     </div>
+    </>
   );
 }
 

@@ -90,104 +90,128 @@ export function NewEventDialog() {
 
   return (
     <AlertDialog open={open} onOpenChange={openValue => !openValue && handleClose()}>
-      <AlertDialogContent>
+      <AlertDialogContent className="max-w-2xl">
         <AlertDialogHeader>
-          <AlertDialogTitle>New event</AlertDialogTitle>
+          <AlertDialogTitle className="text-xl">Create New Event</AlertDialogTitle>
         </AlertDialogHeader>
-        <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <label className="text-xs font-medium">
-              Title
+        <div className="space-y-5 py-4">
+          <div className="space-y-2.5">
+            <label className="text-sm font-medium flex items-center gap-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M4 7V4h16v3M9 20h6M12 4v16" />
+              </svg>
+              Event Title
             </label>
             <Input
               autoFocus
               value={title}
               onChange={event => setTitle(event.target.value)}
-              placeholder="Deep work block"
+              placeholder="e.g., Team Standup, Client Call, Deep Work"
+              className="text-base"
             />
           </div>
-          <div className="space-y-2">
-            <label className="text-xs font-medium">
+          <div className="space-y-2.5">
+            <label className="text-sm font-medium flex items-center gap-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
               Description
+              <span className="text-xs text-muted-foreground font-normal">(Optional)</span>
             </label>
             <Textarea
               rows={3}
               value={description}
               onChange={event => setDescription(event.target.value)}
-              placeholder="Optional details, goals, or links…"
+              placeholder="Add notes, agenda items, meeting links..."
+              className="resize-none"
             />
           </div>
-          <div className="flex items-start gap-2">
-            <div className="flex-1 space-y-2">
-              <label className="text-xs font-medium">
-                Start Date
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2.5">
+              <label className="text-sm font-medium flex items-center gap-2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+                Start
               </label>
               <Input
                 type="datetime-local"
                 value={startInput}
                 onChange={event => setStartInput(event.target.value)}
+                className="text-sm"
               />
             </div>
-            <div className="flex-1 space-y-2">
-              <label className="text-xs font-medium">
-                End Date
+            <div className="space-y-2.5">
+              <label className="text-sm font-medium flex items-center gap-2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+                End
               </label>
               <Input
                 type="datetime-local"
                 value={endInput}
                 onChange={event => setEndInput(event.target.value)}
+                className="text-sm"
               />
             </div>
           </div>
-          <div className="space-y-2">
-            <label className="text-xs font-medium">
-              Color
+          <div className="space-y-2.5">
+            <label className="text-sm font-medium flex items-center gap-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 8v4l3 3" />
+              </svg>
+              Event Color
             </label>
             <Select value={color} onValueChange={value => setColor(value as EventColor)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a color" />
+              <SelectTrigger className="h-11">
+                <SelectValue placeholder="Choose event color" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="blue">
                   <div className="flex items-center gap-2">
-                    <div className="size-3.5 rounded-full bg-blue-600" />
-                    Blue
+                    <div className="size-3.5 rounded-full bg-sky-500" />
+                    Sky Blue
                   </div>
                 </SelectItem>
                 <SelectItem value="green">
                   <div className="flex items-center gap-2">
-                    <div className="size-3.5 rounded-full bg-green-600" />
-                    Green
+                    <div className="size-3.5 rounded-full bg-emerald-500" />
+                    Emerald
                   </div>
                 </SelectItem>
                 <SelectItem value="red">
                   <div className="flex items-center gap-2">
-                    <div className="size-3.5 rounded-full bg-red-600" />
-                    Red
+                    <div className="size-3.5 rounded-full bg-rose-500" />
+                    Rose
                   </div>
                 </SelectItem>
                 <SelectItem value="yellow">
                   <div className="flex items-center gap-2">
-                    <div className="size-3.5 rounded-full bg-yellow-600" />
-                    Yellow
+                    <div className="size-3.5 rounded-full bg-amber-500" />
+                    Amber
                   </div>
                 </SelectItem>
                 <SelectItem value="purple">
                   <div className="flex items-center gap-2">
-                    <div className="size-3.5 rounded-full bg-purple-600" />
-                    Purple
+                    <div className="size-3.5 rounded-full bg-violet-500" />
+                    Violet
                   </div>
                 </SelectItem>
                 <SelectItem value="orange">
                   <div className="flex items-center gap-2">
-                    <div className="size-3.5 rounded-full bg-orange-600" />
+                    <div className="size-3.5 rounded-full bg-orange-500" />
                     Orange
                   </div>
                 </SelectItem>
                 <SelectItem value="gray">
                   <div className="flex items-center gap-2">
-                    <div className="size-3.5 rounded-full bg-neutral-600" />
-                    Gray
+                    <div className="size-3.5 rounded-full bg-slate-500" />
+                    Slate
                   </div>
                 </SelectItem>
               </SelectContent>

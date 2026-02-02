@@ -14,60 +14,213 @@ const mockNow = new Date();
 const toIso = (d: Date) => d.toISOString();
 
 const createMockEvents = (): CalendarEvent[] => {
-  const dayStart = new Date(
-    mockNow.getFullYear(),
-    mockNow.getMonth(),
-    mockNow.getDate(),
-    9,
-    0,
-    0
-  );
-  const dayMid = new Date(
-    mockNow.getFullYear(),
-    mockNow.getMonth(),
-    mockNow.getDate(),
-    13,
-    0,
-    0
-  );
-  const dayEnd = new Date(
-    mockNow.getFullYear(),
-    mockNow.getMonth(),
-    mockNow.getDate(),
-    17,
-    0,
-    0
-  );
+  const events: CalendarEvent[] = [];
+  let eventId = 1;
 
-  return [
+  // Helper to create date at specific day offset and time
+  const createDate = (dayOffset: number, hour: number, minute: number = 0) => {
+    return new Date(
+      mockNow.getFullYear(),
+      mockNow.getMonth(),
+      mockNow.getDate() + dayOffset,
+      hour,
+      minute,
+      0
+    );
+  };
+
+  // Today's events
+  events.push(
     {
-      id: "1",
-      title: "Deep Work",
-      description: "Focus block for core project work",
-      startDate: toIso(dayStart),
-      endDate: toIso(new Date(dayStart.getTime() + 2 * 60 * 60 * 1000)),
+      id: String(eventId++),
+      title: "Morning Standup",
+      description: "Daily team sync and planning session",
+      startDate: toIso(createDate(0, 9, 0)),
+      endDate: toIso(createDate(0, 9, 30)),
       color: "blue",
       meta: { source: "user" },
     },
     {
-      id: "2",
-      title: "Product Sync",
-      description: "Sync with team",
-      startDate: toIso(dayMid),
-      endDate: toIso(new Date(dayMid.getTime() + 60 * 60 * 1000)),
+      id: String(eventId++),
+      title: "Deep Work Block",
+      description: "Focus time for critical project milestones",
+      startDate: toIso(createDate(0, 10, 0)),
+      endDate: toIso(createDate(0, 12, 0)),
+      color: "purple",
+      meta: { source: "user" },
+    },
+    {
+      id: String(eventId++),
+      title: "Lunch & Learn",
+      description: "New technology presentation",
+      startDate: toIso(createDate(0, 12, 30)),
+      endDate: toIso(createDate(0, 13, 30)),
+      color: "green",
+      meta: { source: "user" },
+    },
+    {
+      id: String(eventId++),
+      title: "Client Call",
+      description: "Q4 strategy review with stakeholders",
+      startDate: toIso(createDate(0, 14, 0)),
+      endDate: toIso(createDate(0, 15, 0)),
+      color: "orange",
+      meta: { source: "ai" },
+    },
+    {
+      id: String(eventId++),
+      title: "Code Review",
+      description: "Review PRs and provide feedback",
+      startDate: toIso(createDate(0, 15, 30)),
+      endDate: toIso(createDate(0, 16, 30)),
+      color: "blue",
+      meta: { source: "user" },
+    }
+  );
+
+  // Tomorrow's events
+  events.push(
+    {
+      id: String(eventId++),
+      title: "Planning Session",
+      description: "Sprint planning for next iteration",
+      startDate: toIso(createDate(1, 9, 0)),
+      endDate: toIso(createDate(1, 10, 30)),
+      color: "yellow",
+      meta: { source: "user" },
+    },
+    {
+      id: String(eventId++),
+      title: "Design Review",
+      description: "UI/UX feedback session",
+      startDate: toIso(createDate(1, 11, 0)),
+      endDate: toIso(createDate(1, 12, 0)),
+      color: "purple",
+      meta: { source: "user" },
+    },
+    {
+      id: String(eventId++),
+      title: "1:1 with Manager",
+      description: "Quarterly performance discussion",
+      startDate: toIso(createDate(1, 14, 0)),
+      endDate: toIso(createDate(1, 14, 45)),
       color: "green",
       meta: { source: "ai" },
     },
     {
-      id: "3",
-      title: "Evening Review",
-      description: "Review outcomes & plan tomorrow",
-      startDate: toIso(new Date(dayEnd.getTime() - 60 * 60 * 1000)),
-      endDate: toIso(dayEnd),
-      color: "purple",
+      id: String(eventId++),
+      title: "Workshop",
+      description: "Advanced React patterns workshop",
+      startDate: toIso(createDate(1, 15, 0)),
+      endDate: toIso(createDate(1, 17, 0)),
+      color: "blue",
+      meta: { source: "user" },
+    }
+  );
+
+  // Day after tomorrow
+  events.push(
+    {
+      id: String(eventId++),
+      title: "Team Building",
+      description: "Quarterly team offsite activity",
+      startDate: toIso(createDate(2, 10, 0)),
+      endDate: toIso(createDate(2, 12, 0)),
+      color: "green",
       meta: { source: "user" },
     },
-  ];
+    {
+      id: String(eventId++),
+      title: "Budget Review",
+      description: "Q4 financial planning meeting",
+      startDate: toIso(createDate(2, 13, 0)),
+      endDate: toIso(createDate(2, 14, 0)),
+      color: "orange",
+      meta: { source: "user" },
+    },
+    {
+      id: String(eventId++),
+      title: "Documentation",
+      description: "Update API documentation",
+      startDate: toIso(createDate(2, 15, 0)),
+      endDate: toIso(createDate(2, 17, 0)),
+      color: "gray",
+      meta: { source: "user" },
+    }
+  );
+
+  // Future events (next week)
+  events.push(
+    {
+      id: String(eventId++),
+      title: "Product Demo",
+      description: "Showcase new features to leadership",
+      startDate: toIso(createDate(3, 10, 0)),
+      endDate: toIso(createDate(3, 11, 30)),
+      color: "red",
+      meta: { source: "ai" },
+    },
+    {
+      id: String(eventId++),
+      title: "Security Audit",
+      description: "Quarterly security review",
+      startDate: toIso(createDate(4, 9, 0)),
+      endDate: toIso(createDate(4, 11, 0)),
+      color: "red",
+      meta: { source: "user" },
+    },
+    {
+      id: String(eventId++),
+      title: "All Hands",
+      description: "Company-wide quarterly update",
+      startDate: toIso(createDate(5, 14, 0)),
+      endDate: toIso(createDate(5, 15, 30)),
+      color: "blue",
+      meta: { source: "user" },
+    },
+    {
+      id: String(eventId++),
+      title: "Engineering Retro",
+      description: "Reflect on sprint outcomes",
+      startDate: toIso(createDate(6, 16, 0)),
+      endDate: toIso(createDate(6, 17, 0)),
+      color: "purple",
+      meta: { source: "user" },
+    }
+  );
+
+  // Previous week events
+  events.push(
+    {
+      id: String(eventId++),
+      title: "Kickoff Meeting",
+      description: "New project initialization",
+      startDate: toIso(createDate(-3, 10, 0)),
+      endDate: toIso(createDate(-3, 11, 0)),
+      color: "green",
+      meta: { source: "user" },
+    },
+    {
+      id: String(eventId++),
+      title: "Training Session",
+      description: "Internal tools training",
+      startDate: toIso(createDate(-2, 14, 0)),
+      endDate: toIso(createDate(-2, 16, 0)),
+      color: "yellow",
+      meta: { source: "user" },
+    },
+    {
+      id: String(eventId++),
+      title: "Architecture Review",
+      description: "System design discussion",
+      startDate: toIso(createDate(-1, 11, 0)),
+      endDate: toIso(createDate(-1, 12, 30)),
+      color: "purple",
+      meta: { source: "user" },
+    }
+  );
+
+  return events;
 };
 
 export const eventsAtom = atom<CalendarEvent[]>(createMockEvents());

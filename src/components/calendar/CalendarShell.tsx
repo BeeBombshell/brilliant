@@ -146,18 +146,49 @@ export function CalendarShell({ children }: { children: React.ReactNode }) {
             Redo
           </Button>
           <Separator orientation="vertical" className="mx-2 h-6" />
-          <div className="flex rounded-md bg-muted p-1 text-xs">
-            {views.map(v => (
-              <Button
-                key={v}
-                size="sm"
-                variant={v === view ? "secondary" : "ghost"}
-                className="px-3 py-1"
-                onClick={() => changeView(v)}
-              >
-                {v.charAt(0).toUpperCase() + v.slice(1)}
-              </Button>
-            ))}
+          <div className="flex items-center gap-1 rounded-md bg-muted p-1">
+            <Button
+              size="sm"
+              variant={view === "day" ? "secondary" : "ghost"}
+              className="h-7 w-7 p-0"
+              onClick={() => changeView("day")}
+              title="Day view"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+            </Button>
+            <Button
+              size="sm"
+              variant={view === "week" ? "secondary" : "ghost"}
+              className="h-7 w-7 p-0"
+              onClick={() => changeView("week")}
+              title="Week view"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+                <line x1="9" y1="10" x2="9" y2="22"/>
+                <line x1="15" y1="10" x2="15" y2="22"/>
+              </svg>
+            </Button>
+            <Button
+              size="sm"
+              variant={view === "month" ? "secondary" : "ghost"}
+              className="h-7 w-7 p-0"
+              onClick={() => changeView("month")}
+              title="Month view"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+                <line x1="9" y1="4" x2="9" y2="22"/>
+                <line x1="15" y1="4" x2="15" y2="22"/>
+                <line x1="3" y1="14" x2="21" y2="14"/>
+                <line x1="3" y1="18" x2="21" y2="18"/>
+              </svg>
+            </Button>
           </div>
         </div>
       </div>

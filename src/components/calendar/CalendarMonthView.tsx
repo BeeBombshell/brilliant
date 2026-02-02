@@ -9,14 +9,15 @@ import { cn } from "@/lib/utils";
 
 const WEEK_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-const colorPillClasses: Record<EventColor, string> = {
-  blue: "border border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300",
-  green: "border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
-  red: "border border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950 dark:text-rose-300",
-  yellow: "border border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300",
-  purple: "border border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-800 dark:bg-violet-950 dark:text-violet-300",
-  orange: "border border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-300",
-  gray: "border border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300",
+// Dot color classes for the colored indicator
+const dotColorClasses: Record<EventColor, string> = {
+  blue: "fill-sky-600",
+  green: "fill-emerald-600",
+  red: "fill-rose-600",
+  yellow: "fill-amber-600",
+  purple: "fill-violet-600",
+  orange: "fill-orange-600",
+  gray: "fill-slate-600",
 };
 
 export function CalendarMonthView() {
@@ -88,15 +89,16 @@ export function CalendarMonthView() {
                 {/* Events */}
                 <div className={cn("space-y-1 px-1", !inMonth && "opacity-50")}>
                   {dayEvents.map(event => (
-                    <div
+                    <button
                       key={event.id}
-                      className={cn(
-                        "truncate rounded-md px-2 py-0.5 text-[0.7rem] font-semibold",
-                        colorPillClasses[event.color]
-                      )}
+                      onClick={() => setSelectedEvent(event)}
+                      className="flex w-full items-center gap-1.5 rounded-md border border-border bg-muted/50 px-2 py-0.5 text-left text-[0.7rem] font-semibold text-foreground transition-all hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     >
-                      {event.title}
-                    </div>
+                      <svg width="6" height="6" viewBox="0 0 6 6" className={`shrink-0 ${dotColorClasses[event.color]}`}>
+                        <circle cx="3" cy="3" r="3" />
+                      </svg>
+                      <span className="truncate">{event.title}</span>
+                    </button>
                   ))}
                   {extraCount > 0 && (
                     <div className="px-1 text-[0.7rem] font-semibold text-muted-foreground">

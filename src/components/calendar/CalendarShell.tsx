@@ -17,7 +17,7 @@ import {
 import type { CalendarView } from "@/types/calendar";
 import { useCalendarActions } from "@/hooks/useCalendarActions";
 
-const views: CalendarView[] = ["day", "week", "month"];
+
 
 function getRangeText(view: CalendarView, date: Date) {
   const fmt = "MMM d, yyyy";
@@ -49,8 +49,8 @@ export function CalendarShell({ children }: { children: React.ReactNode }) {
       view === "day"
         ? subDays(current, 1)
         : view === "week"
-        ? subWeeks(current, 1)
-        : subMonths(current, 1);
+          ? subWeeks(current, 1)
+          : subMonths(current, 1);
     changeDate(next);
   };
 
@@ -60,8 +60,8 @@ export function CalendarShell({ children }: { children: React.ReactNode }) {
       view === "day"
         ? addDays(current, 1)
         : view === "week"
-        ? addWeeks(current, 1)
-        : addMonths(current, 1);
+          ? addWeeks(current, 1)
+          : addMonths(current, 1);
     changeDate(next);
   };
 
@@ -79,9 +79,6 @@ export function CalendarShell({ children }: { children: React.ReactNode }) {
     <Card className="flex h-full flex-col border-none shadow-none">
       <div className="flex items-center justify-between gap-4 border-b px-6 py-3">
         <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm" onClick={createQuickEvent}>
-            + New
-          </Button>
           <Button variant="outline" size="sm" onClick={goToday}>
             Today
           </Button>
@@ -155,8 +152,8 @@ export function CalendarShell({ children }: { children: React.ReactNode }) {
               title="Day view"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                <line x1="3" y1="10" x2="21" y2="10"/>
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="3" y1="10" x2="21" y2="10" />
               </svg>
             </Button>
             <Button
@@ -167,10 +164,10 @@ export function CalendarShell({ children }: { children: React.ReactNode }) {
               title="Week view"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                <line x1="3" y1="10" x2="21" y2="10"/>
-                <line x1="9" y1="10" x2="9" y2="22"/>
-                <line x1="15" y1="10" x2="15" y2="22"/>
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+                <line x1="9" y1="10" x2="9" y2="22" />
+                <line x1="15" y1="10" x2="15" y2="22" />
               </svg>
             </Button>
             <Button
@@ -181,15 +178,18 @@ export function CalendarShell({ children }: { children: React.ReactNode }) {
               title="Month view"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                <line x1="3" y1="10" x2="21" y2="10"/>
-                <line x1="9" y1="4" x2="9" y2="22"/>
-                <line x1="15" y1="4" x2="15" y2="22"/>
-                <line x1="3" y1="14" x2="21" y2="14"/>
-                <line x1="3" y1="18" x2="21" y2="18"/>
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+                <line x1="9" y1="4" x2="9" y2="22" />
+                <line x1="15" y1="4" x2="15" y2="22" />
+                <line x1="3" y1="14" x2="21" y2="14" />
+                <line x1="3" y1="18" x2="21" y2="18" />
               </svg>
             </Button>
           </div>
+          <Button variant="default" size="sm" onClick={createQuickEvent}>
+            + Event
+          </Button>
         </div>
       </div>
 

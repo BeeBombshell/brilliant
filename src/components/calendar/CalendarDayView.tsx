@@ -12,14 +12,15 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const minutesInDay = 24 * 60;
 const HOUR_HEIGHT = 96; // 96px per hour (Big Calendar standard)
 
-const colorClasses: Record<EventColor, string> = {
-  blue: "border border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300",
-  green: "border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
-  red: "border border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950 dark:text-rose-300",
-  yellow: "border border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300",
-  purple: "border border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-800 dark:bg-violet-950 dark:text-violet-300",
-  orange: "border border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-300",
-  gray: "border border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300",
+// Dot color classes for the colored indicator
+const dotColorClasses: Record<EventColor, string> = {
+  blue: "fill-sky-600",
+  green: "fill-emerald-600",
+  red: "fill-rose-600",
+  yellow: "fill-amber-600",
+  purple: "fill-violet-600",
+  orange: "fill-orange-600",
+  gray: "fill-slate-600",
 };
 
 export function CalendarDayView() {
@@ -104,9 +105,9 @@ export function CalendarDayView() {
   const dragOverlay =
     dragStartY != null && dragCurrentY != null
       ? {
-          top: Math.min(dragStartY, dragCurrentY),
-          height: Math.abs(dragCurrentY - dragStartY),
-        }
+        top: Math.min(dragStartY, dragCurrentY),
+        height: Math.abs(dragCurrentY - dragStartY),
+      }
       : null;
 
   return (
@@ -119,94 +120,101 @@ export function CalendarDayView() {
       <div className="flex h-full overflow-hidden bg-background">
         <div className="flex flex-1 flex-col overflow-auto">
           <div className="flex min-w-full flex-1">
-        {/* Hour labels column */}
-        <div className="sticky left-0 z-30 w-18 flex-none border-r bg-background text-right text-xs text-muted-foreground">
-          {HOURS.map((hour, index) => (
-            <div key={hour} className="relative" style={{ height: `${HOUR_HEIGHT}px` }}>
-              {index !== 0 && (
-                <div className="absolute -top-3 right-2 flex h-6 items-center">
-                  <span>{format(new Date().setHours(hour, 0, 0, 0), "hh a")}</span>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-
-        {/* Time grid */}
-        <div className="relative flex-1">
-          <div
-            className="relative min-h-full"
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-          >
-            {HOURS.map((hour, index) => (
-              <div
-                key={hour}
-                className="relative"
-                style={{ height: `${HOUR_HEIGHT}px` }}
-              >
-                {index !== 0 && (
-                  <div className="pointer-events-none absolute inset-x-0 top-0 border-b" />
-                )}
-                {/* Half-hour dashed line */}
-                <div className="pointer-events-none absolute inset-x-0 top-1/2 border-b border-dashed" />
-              </div>
-            ))}
-
-            {/* Drag overlay */}
-            {dragOverlay && (
-              <div
-                className="pointer-events-none absolute left-1 right-1 rounded-md border-2 border-primary bg-primary/10"
-                style={{
-                  top: dragOverlay.top,
-                  height: dragOverlay.height,
-                }}
-              />
-            )}
-
-            {/* Current time indicator */}
-            {isToday(selectedDate) && <CurrentTimeIndicator hourHeight={HOUR_HEIGHT} />}
-
-            {/* Events */}
-            {dayEvents.map(event => {
-              const start = parseISO(event.startDate);
-              const end = parseISO(event.endDate);
-              const topMinutes = differenceInMinutes(start, dayStart);
-              const durationMinutes = Math.max(
-                30,
-                differenceInMinutes(end, start)
-              );
-
-              const topPercent = (topMinutes / minutesInDay) * 100;
-              const heightPercent = (durationMinutes / minutesInDay) * 100;
-
-              return (
-                <button
-                  key={event.id}
-                  onClick={() => setSelectedEvent(event)}
-                  className={`absolute left-1 right-1 overflow-hidden rounded-md px-2 py-1.5 text-left text-xs transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${colorClasses[event.color]}`}
-                  style={{
-                    top: `${topPercent}%`,
-                    height: `${heightPercent}%`,
-                  }}
-                >
-                  <div className="truncate font-semibold">{event.title}</div>
-                  {durationMinutes > 25 && event.description && (
-                    <div className="mt-0.5 line-clamp-2 text-[0.7rem] opacity-80">
-                      {event.description}
+            {/* Hour labels column */}
+            <div className="sticky left-0 z-30 w-18 flex-none border-r bg-background text-right text-xs text-muted-foreground">
+              {HOURS.map((hour, index) => (
+                <div key={hour} className="relative" style={{ height: `${HOUR_HEIGHT}px` }}>
+                  {index !== 0 && (
+                    <div className="absolute -top-3 right-2 flex h-6 items-center">
+                      <span>{format(new Date().setHours(hour, 0, 0, 0), "hh a")}</span>
                     </div>
                   )}
-                </button>
-              );
-            })}
-          </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Time grid */}
+            <div className="relative flex-1">
+              <div
+                className="relative min-h-full"
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+              >
+                {HOURS.map((hour, index) => (
+                  <div
+                    key={hour}
+                    className="relative"
+                    style={{ height: `${HOUR_HEIGHT}px` }}
+                  >
+                    {index !== 0 && (
+                      <div className="pointer-events-none absolute inset-x-0 top-0 border-b" />
+                    )}
+                    {/* Half-hour dashed line */}
+                    <div className="pointer-events-none absolute inset-x-0 top-1/2 border-b border-dashed" />
+                  </div>
+                ))}
+
+                {/* Drag overlay */}
+                {dragOverlay && (
+                  <div
+                    className="pointer-events-none absolute left-1 right-1 rounded-md border-2 border-primary bg-primary/10"
+                    style={{
+                      top: dragOverlay.top,
+                      height: dragOverlay.height,
+                    }}
+                  />
+                )}
+
+                {/* Current time indicator */}
+                {isToday(selectedDate) && <CurrentTimeIndicator hourHeight={HOUR_HEIGHT} />}
+
+                {/* Events */}
+                {dayEvents.map(event => {
+                  const start = parseISO(event.startDate);
+                  const end = parseISO(event.endDate);
+                  const topMinutes = differenceInMinutes(start, dayStart);
+                  const durationMinutes = Math.max(
+                    30,
+                    differenceInMinutes(end, start)
+                  );
+
+                  const topPercent = (topMinutes / minutesInDay) * 100;
+                  const heightPercent = (durationMinutes / minutesInDay) * 100;
+
+                  return (
+                    <button
+                      key={event.id}
+                      onClick={() => setSelectedEvent(event)}
+                      className="absolute left-1 right-1 overflow-hidden rounded-md border border-border bg-muted/50 px-2 pt-1 pb-2 text-left text-xs text-foreground transition-all hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      style={{
+                        top: `${topPercent}%`,
+                        height: `${heightPercent}%`,
+                      }}
+                    >
+                      <div className="flex items-start gap-1.5">
+                        <svg width="8" height="8" viewBox="0 0 8 8" className={`shrink-0 ${dotColorClasses[event.color]}`}>
+                          <circle cx="4" cy="4" r="4" />
+                        </svg>
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate font-semibold leading-tight">{event.title}</div>
+                          {durationMinutes > 25 && event.description && (
+                            <div className="mt-0.5 line-clamp-2 text-[0.7rem] leading-tight text-muted-foreground">
+                              {event.description}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
-      </div>
 
-      <HappeningNowSidebar events={events} onEventClick={setSelectedEvent} />
-    </div>
+        <HappeningNowSidebar events={events} onEventClick={setSelectedEvent} />
+      </div>
     </>
   );
 }

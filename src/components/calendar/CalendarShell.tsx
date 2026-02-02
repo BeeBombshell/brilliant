@@ -119,12 +119,6 @@ export function CalendarShell({ children }: { children: React.ReactNode }) {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2 pl-14">
-            {/* <Button variant="outline" size="sm" onClick={goToday}>
-              Today
-            </Button> */}
-
-          </div>
         </div>
 
         <div className="flex items-center gap-2">

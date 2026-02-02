@@ -98,110 +98,115 @@ export function CalendarWeekView() {
     };
 
   return (
-    <div className="flex h-full overflow-hidden">
-      <div className="w-14 border-r bg-muted/40 text-right text-xs text-muted-foreground">
-        {HOURS.map(hour => (
-          <div key={hour} className="h-12 pr-1">
-            {hour.toString().padStart(2, "0")}:00
+    <div className="flex h-full flex-col overflow-auto bg-background">
+      <div className="flex min-w-fit flex-1">
+        <div className="sticky left-0 z-30 flex w-14 flex-none flex-col border-r bg-background">
+          <div className="sticky top-0 z-40 h-8 border-b bg-background" />
+          <div className="bg-muted/40 text-right text-xs text-muted-foreground">
+            {HOURS.map(hour => (
+              <div key={hour} className="h-12 pr-1 pt-1">
+                {hour.toString().padStart(2, "0")}:00
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
-      <div className="flex flex-1 overflow-auto">
-        {days.map((day, index) => {
-          const dayStart = new Date(
-            day.getFullYear(),
-            day.getMonth(),
-            day.getDate(),
-            0,
-            0,
-            0
-          );
-
-          const dayEvents = events.filter(event => {
-            const start = parseISO(event.startDate);
-            return (
-              start.getFullYear() === day.getFullYear() &&
-              start.getMonth() === day.getMonth() &&
-              start.getDate() === day.getDate()
+        </div>
+        <div className="flex flex-1">
+          {days.map((day, index) => {
+            const dayStart = new Date(
+              day.getFullYear(),
+              day.getMonth(),
+              day.getDate(),
+              0,
+              0,
+              0
             );
-          });
 
-          const dragOverlay =
-            dragState && dragState.dayIndex === index
-              ? {
-                  top: Math.min(dragState.startY, dragState.currentY),
-                  height: Math.abs(dragState.currentY - dragState.startY),
-                }
-              : null;
+            const dayEvents = events.filter(event => {
+              const start = parseISO(event.startDate);
+              return (
+                start.getFullYear() === day.getFullYear() &&
+                start.getMonth() === day.getMonth() &&
+                start.getDate() === day.getDate()
+              );
+            });
 
-          return (
-            <div
-              key={day.toISOString()}
-              className="relative min-w-[180px] border-r last:border-r-0"
-            >
-              <div className="sticky top-0 z-10 border-b bg-background px-2 py-1 text-xs font-medium">
-                {format(day, "EEE d")}
-              </div>
+            const dragOverlay =
+              dragState && dragState.dayIndex === index
+                ? {
+                    top: Math.min(dragState.startY, dragState.currentY),
+                    height: Math.abs(dragState.currentY - dragState.startY),
+                  }
+                : null;
+
+            return (
               <div
-                className="relative"
-                onPointerDown={handlePointerDown(index)}
-                onPointerMove={handlePointerMove(index)}
-                onPointerUp={handlePointerUp(index, day)}
+                key={day.toISOString()}
+                className="flex-1 min-w-[180px] border-r last:border-r-0"
               >
-                {HOURS.map(hour => (
-                  <div
-                    key={hour}
-                    className="border-b border-border/60"
-                    style={{ height: "3rem" }}
-                  />
-                ))}
-
-                {dragOverlay && (
-                  <div
-                    className="pointer-events-none absolute left-1 right-1 rounded-md bg-primary/20"
-                    style={{
-                      top: dragOverlay.top,
-                      height: dragOverlay.height,
-                    }}
-                  />
-                )}
-
-                {dayEvents.map(event => {
-                  const start = parseISO(event.startDate);
-                  const end = parseISO(event.endDate);
-                  const topMinutes =
-                    (start.getTime() - dayStart.getTime()) / 60000;
-                  const durationMinutes = Math.max(
-                    30,
-                    (end.getTime() - start.getTime()) / 60000
-                  );
-
-                  const topPercent = (topMinutes / minutesInDay) * 100;
-                  const heightPercent =
-                    (durationMinutes / minutesInDay) * 100;
-
-                  return (
+                <div className="sticky top-0 z-20 flex h-8 items-center border-b bg-background px-2 text-xs font-medium">
+                  {format(day, "EEE d")}
+                </div>
+                <div
+                  className="relative"
+                  onPointerDown={handlePointerDown(index)}
+                  onPointerMove={handlePointerMove(index)}
+                  onPointerUp={handlePointerUp(index, day)}
+                >
+                  {HOURS.map(hour => (
                     <div
-                      key={event.id}
-                      className={`absolute left-1 right-1 rounded-md px-2 py-1 text-xs ${colorClasses[event.color]}`}
+                      key={hour}
+                      className="border-b border-border/60"
+                      style={{ height: "3rem" }}
+                    />
+                  ))}
+
+                  {dragOverlay && (
+                    <div
+                      className="pointer-events-none absolute left-1 right-1 rounded-md bg-primary/20"
                       style={{
-                        top: `${topPercent}%`,
-                        height: `${heightPercent}%`,
+                        top: dragOverlay.top,
+                        height: dragOverlay.height,
                       }}
-                    >
-                      <div className="font-medium">{event.title}</div>
-                      {event.description && (
-                        <div className="text-[0.7rem] text-muted-foreground">
-                          {event.description}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                    />
+                  )}
+
+                  {dayEvents.map(event => {
+                    const start = parseISO(event.startDate);
+                    const end = parseISO(event.endDate);
+                    const topMinutes =
+                      (start.getTime() - dayStart.getTime()) / 60000;
+                    const durationMinutes = Math.max(
+                      30,
+                      (end.getTime() - start.getTime()) / 60000
+                    );
+
+                    const topPercent = (topMinutes / minutesInDay) * 100;
+                    const heightPercent =
+                      (durationMinutes / minutesInDay) * 100;
+
+                    return (
+                      <div
+                        key={event.id}
+                        className={`absolute left-1 right-1 rounded-md px-2 py-1 text-xs ${colorClasses[event.color]}`}
+                        style={{
+                          top: `${topPercent}%`,
+                          height: `${heightPercent}%`,
+                        }}
+                      >
+                        <div className="font-medium">{event.title}</div>
+                        {event.description && (
+                          <div className="text-[0.7rem] text-muted-foreground">
+                            {event.description}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </div>
   );

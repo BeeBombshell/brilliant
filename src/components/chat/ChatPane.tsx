@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { actionLogAtom, selectedDateAtom, newEventDraftAtom } from "@/state/calendarAtoms";
-import { useCalendarActions } from "@/hooks/useCalendarActions";
+// import { useCalendarActions } from "@/hooks/useCalendarActions";
 
 interface ChatMessage {
   id: string;
@@ -30,7 +30,7 @@ export function ChatPane() {
   const [actionLog] = useAtom(actionLogAtom);
   const [, setSelectedDate] = useAtom(selectedDateAtom);
   const [, setDraft] = useAtom(newEventDraftAtom);
-  const { addEvent } = useCalendarActions();
+  // const { addEvent } = useCalendarActions();
 
   const orderedMessages = useMemo(() => mockMessages, []);
 

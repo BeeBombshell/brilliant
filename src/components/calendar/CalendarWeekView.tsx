@@ -7,15 +7,16 @@ import type { EventColor } from "@/types/calendar";
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const minutesInDay = 24 * 60;
+const HOUR_HEIGHT = 96; // 96px per hour (Big Calendar standard)
 
 const colorClasses: Record<EventColor, string> = {
-  blue: "border-blue-500/50 bg-blue-500/15",
-  green: "border-green-500/50 bg-green-500/15",
-  red: "border-red-500/50 bg-red-500/15",
-  yellow: "border-yellow-400/60 bg-yellow-400/15",
-  purple: "border-purple-500/50 bg-purple-500/15",
-  orange: "border-orange-500/50 bg-orange-500/15",
-  gray: "border-neutral-400/60 bg-neutral-400/15",
+  blue: "border border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300",
+  green: "border border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-300",
+  red: "border border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300",
+  yellow: "border border-yellow-200 bg-yellow-50 text-yellow-700 dark:border-yellow-800 dark:bg-yellow-950 dark:text-yellow-300",
+  purple: "border border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-800 dark:bg-purple-950 dark:text-purple-300",
+  orange: "border border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-300",
+  gray: "border border-neutral-200 bg-neutral-50 text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300",
 };
 
 export function CalendarWeekView() {
@@ -100,16 +101,23 @@ export function CalendarWeekView() {
   return (
     <div className="flex h-full flex-col overflow-auto bg-background">
       <div className="flex min-w-fit flex-1">
-        <div className="sticky left-0 z-30 flex w-14 flex-none flex-col border-r bg-background">
-          <div className="sticky top-0 z-40 h-8 border-b bg-background" />
-          <div className="bg-muted/40 text-right text-xs text-muted-foreground">
-            {HOURS.map(hour => (
-              <div key={hour} className="h-12 pr-1 pt-1">
-                {hour.toString().padStart(2, "0")}:00
+        {/* Hour labels column */}
+        <div className="sticky left-0 z-30 flex w-18 flex-none flex-col border-r bg-background">
+          <div className="sticky top-0 z-40 h-10 border-b bg-background" />
+          <div className="text-right text-xs text-muted-foreground">
+            {HOURS.map((hour, index) => (
+              <div key={hour} className="relative" style={{ height: `${HOUR_HEIGHT}px` }}>
+                {index !== 0 && (
+                  <div className="absolute -top-3 right-2 flex h-6 items-center">
+                    <span>{format(new Date().setHours(hour, 0, 0, 0), "hh a")}</span>
+                  </div>
+                )}
               </div>
             ))}
           </div>
         </div>
+
+        {/* Day columns */}
         <div className="flex flex-1">
           {days.map((day, index) => {
             const dayStart = new Date(
@@ -141,28 +149,39 @@ export function CalendarWeekView() {
             return (
               <div
                 key={day.toISOString()}
-                className="flex-1 min-w-[180px] border-r last:border-r-0"
+                className="min-w-[140px] flex-1 border-r last:border-r-0"
               >
-                <div className="sticky top-0 z-20 flex h-8 items-center border-b bg-background px-2 text-xs font-medium">
-                  {format(day, "EEE d")}
+                {/* Day header */}
+                <div className="sticky top-0 z-20 flex h-10 items-center justify-center border-b bg-background text-xs font-medium">
+                  <span className="text-muted-foreground">{format(day, "EEE")}</span>
+                  <span className="ml-1 font-semibold">{format(day, "d")}</span>
                 </div>
+
+                {/* Time grid */}
                 <div
                   className="relative"
                   onPointerDown={handlePointerDown(index)}
                   onPointerMove={handlePointerMove(index)}
                   onPointerUp={handlePointerUp(index, day)}
                 >
-                  {HOURS.map(hour => (
+                  {HOURS.map((hour, hourIndex) => (
                     <div
                       key={hour}
-                      className="border-b border-border/60"
-                      style={{ height: "3rem" }}
-                    />
+                      className="relative"
+                      style={{ height: `${HOUR_HEIGHT}px` }}
+                    >
+                      {hourIndex !== 0 && (
+                        <div className="pointer-events-none absolute inset-x-0 top-0 border-b" />
+                      )}
+                      {/* Half-hour dashed line */}
+                      <div className="pointer-events-none absolute inset-x-0 top-1/2 border-b border-dashed" />
+                    </div>
                   ))}
 
+                  {/* Drag overlay */}
                   {dragOverlay && (
                     <div
-                      className="pointer-events-none absolute left-1 right-1 rounded-md bg-primary/20"
+                      className="pointer-events-none absolute left-1 right-1 rounded-md border-2 border-primary bg-primary/10"
                       style={{
                         top: dragOverlay.top,
                         height: dragOverlay.height,
@@ -170,6 +189,7 @@ export function CalendarWeekView() {
                     />
                   )}
 
+                  {/* Events */}
                   {dayEvents.map(event => {
                     const start = parseISO(event.startDate);
                     const end = parseISO(event.endDate);
@@ -187,15 +207,15 @@ export function CalendarWeekView() {
                     return (
                       <div
                         key={event.id}
-                        className={`absolute left-1 right-1 rounded-md px-2 py-1 text-xs ${colorClasses[event.color]}`}
+                        className={`absolute left-1 right-1 rounded-md px-2 py-1.5 text-xs ${colorClasses[event.color]}`}
                         style={{
                           top: `${topPercent}%`,
                           height: `${heightPercent}%`,
                         }}
                       >
-                        <div className="font-medium">{event.title}</div>
-                        {event.description && (
-                          <div className="text-[0.7rem] text-muted-foreground">
+                        <div className="font-semibold">{event.title}</div>
+                        {durationMinutes > 25 && event.description && (
+                          <div className="mt-0.5 text-[0.7rem] opacity-80">
                             {event.description}
                           </div>
                         )}

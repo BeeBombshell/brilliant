@@ -94,9 +94,9 @@ export function NewEventDialog() {
         <AlertDialogHeader>
           <AlertDialogTitle>New event</AlertDialogTitle>
         </AlertDialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <label className="text-xs font-medium">
               Title
             </label>
             <Input
@@ -106,9 +106,9 @@ export function NewEventDialog() {
               placeholder="Deep work block"
             />
           </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">
-              Notes
+          <div className="space-y-2">
+            <label className="text-xs font-medium">
+              Description
             </label>
             <Textarea
               rows={3}
@@ -117,10 +117,10 @@ export function NewEventDialog() {
               placeholder="Optional details, goals, or links…"
             />
           </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">
-                Start
+          <div className="flex items-start gap-2">
+            <div className="flex-1 space-y-2">
+              <label className="text-xs font-medium">
+                Start Date
               </label>
               <Input
                 type="datetime-local"
@@ -128,9 +128,9 @@ export function NewEventDialog() {
                 onChange={event => setStartInput(event.target.value)}
               />
             </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">
-                End
+            <div className="flex-1 space-y-2">
+              <label className="text-xs font-medium">
+                End Date
               </label>
               <Input
                 type="datetime-local"
@@ -139,54 +139,54 @@ export function NewEventDialog() {
               />
             </div>
           </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">
+          <div className="space-y-2">
+            <label className="text-xs font-medium">
               Color
             </label>
             <Select value={color} onValueChange={value => setColor(value as EventColor)}>
-              <SelectTrigger className="h-8">
-                <SelectValue placeholder="Pick a color" />
+              <SelectTrigger>
+                <SelectValue placeholder="Select a color" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="blue">
                   <div className="flex items-center gap-2">
-                    <span className="h-3 w-3 rounded-full bg-blue-500" />
+                    <div className="size-3.5 rounded-full bg-blue-600" />
                     Blue
                   </div>
                 </SelectItem>
                 <SelectItem value="green">
                   <div className="flex items-center gap-2">
-                    <span className="h-3 w-3 rounded-full bg-green-500" />
+                    <div className="size-3.5 rounded-full bg-green-600" />
                     Green
                   </div>
                 </SelectItem>
                 <SelectItem value="red">
                   <div className="flex items-center gap-2">
-                    <span className="h-3 w-3 rounded-full bg-red-500" />
+                    <div className="size-3.5 rounded-full bg-red-600" />
                     Red
                   </div>
                 </SelectItem>
                 <SelectItem value="yellow">
                   <div className="flex items-center gap-2">
-                    <span className="h-3 w-3 rounded-full bg-yellow-400" />
+                    <div className="size-3.5 rounded-full bg-yellow-600" />
                     Yellow
                   </div>
                 </SelectItem>
                 <SelectItem value="purple">
                   <div className="flex items-center gap-2">
-                    <span className="h-3 w-3 rounded-full bg-purple-500" />
+                    <div className="size-3.5 rounded-full bg-purple-600" />
                     Purple
                   </div>
                 </SelectItem>
                 <SelectItem value="orange">
                   <div className="flex items-center gap-2">
-                    <span className="h-3 w-3 rounded-full bg-orange-500" />
+                    <div className="size-3.5 rounded-full bg-orange-600" />
                     Orange
                   </div>
                 </SelectItem>
                 <SelectItem value="gray">
                   <div className="flex items-center gap-2">
-                    <span className="h-3 w-3 rounded-full bg-neutral-500" />
+                    <div className="size-3.5 rounded-full bg-neutral-600" />
                     Gray
                   </div>
                 </SelectItem>

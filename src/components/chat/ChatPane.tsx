@@ -4,7 +4,8 @@ import { useAtom } from "jotai";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { actionLogAtom } from "@/state/calendarAtoms";
+import { actionLogAtom, selectedDateAtom, newEventDraftAtom } from "@/state/calendarAtoms";
+import { useCalendarActions } from "@/hooks/useCalendarActions";
 
 interface ChatMessage {
   id: string;
@@ -27,6 +28,9 @@ const mockMessages: ChatMessage[] = [
 
 export function ChatPane() {
   const [actionLog] = useAtom(actionLogAtom);
+  const [, setSelectedDate] = useAtom(selectedDateAtom);
+  const [, setDraft] = useAtom(newEventDraftAtom);
+  const { addEvent } = useCalendarActions();
 
   const orderedMessages = useMemo(() => mockMessages, []);
 
@@ -83,6 +87,22 @@ export function ChatPane() {
           className="space-y-2"
           onSubmit={event => {
             event.preventDefault();
+            const now = new Date();
+            setSelectedDate(now);
+            const start = new Date(
+              now.getFullYear(),
+              now.getMonth(),
+              now.getDate(),
+              now.getHours(),
+              0,
+              0,
+              0
+            );
+            const end = new Date(start.getTime() + 60 * 60 * 1000);
+            setDraft({
+              startDate: start.toISOString(),
+              endDate: end.toISOString(),
+            });
           }}
         >
           <Textarea
@@ -92,7 +112,7 @@ export function ChatPane() {
           />
           <div className="flex justify-end">
             <Button type="submit" size="sm">
-              Send to AI
+              Ask AI to schedule
             </Button>
           </div>
         </form>

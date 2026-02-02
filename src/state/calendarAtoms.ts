@@ -1,5 +1,10 @@
 import { atom } from "jotai";
-import type { CalendarAction, CalendarEvent, CalendarView } from "@/types/calendar";
+import type {
+  CalendarAction,
+  CalendarEvent,
+  CalendarView,
+  NewEventDraft,
+} from "@/types/calendar";
 
 export const selectedDateAtom = atom<Date>(new Date());
 
@@ -100,4 +105,6 @@ export const actionLogAtom = atom<string[]>(get =>
       }
     })
 );
+
+export const newEventDraftAtom = atom<NewEventDraft | null>(null);
 

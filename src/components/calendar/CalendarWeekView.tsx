@@ -1,22 +1,90 @@
+import { useState } from "react";
 import { addDays, format, parseISO } from "date-fns";
 import { useAtom } from "jotai";
 
-import { selectedDateAtom, eventsAtom } from "@/state/calendarAtoms";
+import { selectedDateAtom, eventsAtom, newEventDraftAtom } from "@/state/calendarAtoms";
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
+const minutesInDay = 24 * 60;
 
 export function CalendarWeekView() {
   const [selectedDate] = useAtom(selectedDateAtom);
   const [events] = useAtom(eventsAtom);
+  const [, setDraft] = useAtom(newEventDraftAtom);
+  const [dragState, setDragState] = useState<{
+    dayIndex: number;
+    startY: number;
+    currentY: number;
+  } | null>(null);
 
   const dayOfWeek = selectedDate.getDay();
   const weekStart = addDays(selectedDate, -dayOfWeek);
 
-  const days = Array.from({ length: 7 }, (_, i) =>
-    addDays(weekStart, i)
-  );
+  const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
-  const minutesInDay = 24 * 60;
+  const handlePointerDown = (dayIndex: number) =>
+    ((event: React.PointerEvent<HTMLDivElement>) => {
+      const container = event.currentTarget;
+      const rect = container.getBoundingClientRect();
+      const y = event.clientY - rect.top + container.scrollTop;
+      setDragState({ dayIndex, startY: y, currentY: y });
+      container.setPointerCapture(event.pointerId);
+    });
+
+  const handlePointerMove =
+    (dayIndex: number) => (event: React.PointerEvent<HTMLDivElement>) => {
+      if (!dragState || dragState.dayIndex !== dayIndex) return;
+      const container = event.currentTarget;
+      const rect = container.getBoundingClientRect();
+      const y = event.clientY - rect.top + container.scrollTop;
+      setDragState(current =>
+        current ? { ...current, currentY: y } : current
+      );
+    };
+
+  const handlePointerUp =
+    (dayIndex: number, day: Date) =>
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      const container = event.currentTarget;
+      if (!dragState || dragState.dayIndex !== dayIndex) {
+        container.releasePointerCapture(event.pointerId);
+        return;
+      }
+
+      const startY = Math.min(dragState.startY, dragState.currentY);
+      const endY = Math.max(dragState.startY, dragState.currentY);
+
+      const totalHeight = container.scrollHeight;
+      const startMinutes = (startY / totalHeight) * minutesInDay;
+      const endMinutes = (endY / totalHeight) * minutesInDay;
+
+      const snapTo = 30;
+      const snappedStart = Math.floor(startMinutes / snapTo) * snapTo;
+      const snappedEnd = Math.max(
+        snappedStart + snapTo,
+        Math.ceil(endMinutes / snapTo) * snapTo
+      );
+
+      const dayStart = new Date(
+        day.getFullYear(),
+        day.getMonth(),
+        day.getDate(),
+        0,
+        0,
+        0
+      );
+
+      const startDate = new Date(dayStart.getTime() + snappedStart * 60000);
+      const endDate = new Date(dayStart.getTime() + snappedEnd * 60000);
+
+      setDraft({
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+      });
+
+      container.releasePointerCapture(event.pointerId);
+      setDragState(null);
+    };
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -28,7 +96,7 @@ export function CalendarWeekView() {
         ))}
       </div>
       <div className="flex flex-1 overflow-auto">
-        {days.map(day => {
+        {days.map((day, index) => {
           const dayStart = new Date(
             day.getFullYear(),
             day.getMonth(),
@@ -47,6 +115,14 @@ export function CalendarWeekView() {
             );
           });
 
+          const dragOverlay =
+            dragState && dragState.dayIndex === index
+              ? {
+                  top: Math.min(dragState.startY, dragState.currentY),
+                  height: Math.abs(dragState.currentY - dragState.startY),
+                }
+              : null;
+
           return (
             <div
               key={day.toISOString()}
@@ -55,7 +131,12 @@ export function CalendarWeekView() {
               <div className="sticky top-0 z-10 border-b bg-background px-2 py-1 text-xs font-medium">
                 {format(day, "EEE d")}
               </div>
-              <div className="relative">
+              <div
+                className="relative"
+                onPointerDown={handlePointerDown(index)}
+                onPointerMove={handlePointerMove(index)}
+                onPointerUp={handlePointerUp(index, day)}
+              >
                 {HOURS.map(hour => (
                   <div
                     key={hour}
@@ -63,6 +144,16 @@ export function CalendarWeekView() {
                     style={{ height: "3rem" }}
                   />
                 ))}
+
+                {dragOverlay && (
+                  <div
+                    className="pointer-events-none absolute left-1 right-1 rounded-md bg-primary/20"
+                    style={{
+                      top: dragOverlay.top,
+                      height: dragOverlay.height,
+                    }}
+                  />
+                )}
 
                 {dayEvents.map(event => {
                   const start = parseISO(event.startDate);
@@ -81,7 +172,7 @@ export function CalendarWeekView() {
                   return (
                     <div
                       key={event.id}
-                      className="absolute left-1 right-1 rounded-md border bg-primary/10 px-2 py-1 text-xs"
+                      className="absolute left-1 right-1 rounded-md border bg-primary/20 px-2 py-1 text-xs"
                       style={{
                         top: `${topPercent}%`,
                         height: `${heightPercent}%`,

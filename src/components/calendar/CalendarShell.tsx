@@ -4,7 +4,13 @@ import { addDays, addWeeks, addMonths, subDays, subWeeks, subMonths, format } fr
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { viewAtom, selectedDateAtom, actionHistoryAtom, redoStackAtom } from "@/state/calendarAtoms";
+import {
+  viewAtom,
+  selectedDateAtom,
+  actionHistoryAtom,
+  redoStackAtom,
+  newEventDraftAtom,
+} from "@/state/calendarAtoms";
 import type { CalendarView } from "@/types/calendar";
 import { useCalendarActions } from "@/hooks/useCalendarActions";
 
@@ -28,6 +34,7 @@ export function CalendarShell({ children }: { children: React.ReactNode }) {
   const [selectedDate] = useAtom(selectedDateAtom);
   const [history] = useAtom(actionHistoryAtom);
   const [redoStack] = useAtom(redoStackAtom);
+  const [, setDraft] = useAtom(newEventDraftAtom);
   const { changeView, changeDate, undo, redo } = useCalendarActions();
 
   const goToday = () => changeDate(new Date());
@@ -54,10 +61,23 @@ export function CalendarShell({ children }: { children: React.ReactNode }) {
     changeDate(next);
   };
 
+  const createQuickEvent = () => {
+    const start = new Date();
+    start.setMinutes(0, 0, 0);
+    const end = new Date(start.getTime() + 60 * 60 * 1000);
+    setDraft({
+      startDate: start.toISOString(),
+      endDate: end.toISOString(),
+    });
+  };
+
   return (
     <Card className="flex h-full flex-col border-none shadow-none">
       <div className="flex items-center justify-between gap-4 border-b px-4 py-2">
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={createQuickEvent}>
+            + New
+          </Button>
           <Button variant="outline" size="sm" onClick={goToday}>
             Today
           </Button>

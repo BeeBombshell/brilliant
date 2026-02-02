@@ -1,13 +1,19 @@
+import { useState } from "react";
 import { parseISO, differenceInMinutes } from "date-fns";
 import { useAtom } from "jotai";
 
-import { selectedDateAtom, eventsAtom } from "@/state/calendarAtoms";
+import { selectedDateAtom, eventsAtom, newEventDraftAtom } from "@/state/calendarAtoms";
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
+
+const minutesInDay = 24 * 60;
 
 export function CalendarDayView() {
   const [selectedDate] = useAtom(selectedDateAtom);
   const [events] = useAtom(eventsAtom);
+  const [, setDraft] = useAtom(newEventDraftAtom);
+  const [dragStartY, setDragStartY] = useState<number | null>(null);
+  const [dragCurrentY, setDragCurrentY] = useState<number | null>(null);
 
   const dayStart = new Date(
     selectedDate.getFullYear(),
@@ -27,7 +33,66 @@ export function CalendarDayView() {
     );
   });
 
-  const minutesInDay = 24 * 60;
+  const handlePointerDown: React.PointerEventHandler<HTMLDivElement> = event => {
+    const container = event.currentTarget;
+    const rect = container.getBoundingClientRect();
+    const y = event.clientY - rect.top + container.scrollTop;
+    setDragStartY(y);
+    setDragCurrentY(y);
+    container.setPointerCapture(event.pointerId);
+  };
+
+  const handlePointerMove: React.PointerEventHandler<HTMLDivElement> = event => {
+    if (dragStartY == null) return;
+    const container = event.currentTarget;
+    const rect = container.getBoundingClientRect();
+    const y = event.clientY - rect.top + container.scrollTop;
+    setDragCurrentY(y);
+  };
+
+  const handlePointerUp: React.PointerEventHandler<HTMLDivElement> = event => {
+    const container = event.currentTarget;
+    if (dragStartY == null || dragCurrentY == null) {
+      container.releasePointerCapture(event.pointerId);
+      setDragStartY(null);
+      setDragCurrentY(null);
+      return;
+    }
+
+    const startY = Math.min(dragStartY, dragCurrentY);
+    const endY = Math.max(dragStartY, dragCurrentY);
+
+    const totalHeight = container.scrollHeight;
+    const startMinutes = (startY / totalHeight) * minutesInDay;
+    const endMinutes = (endY / totalHeight) * minutesInDay;
+
+    const snapTo = 30;
+    const snappedStart = Math.floor(startMinutes / snapTo) * snapTo;
+    const snappedEnd = Math.max(
+      snappedStart + snapTo,
+      Math.ceil(endMinutes / snapTo) * snapTo
+    );
+
+    const startDate = new Date(dayStart.getTime() + snappedStart * 60000);
+    const endDate = new Date(dayStart.getTime() + snappedEnd * 60000);
+
+    setDraft({
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+    });
+
+    container.releasePointerCapture(event.pointerId);
+    setDragStartY(null);
+    setDragCurrentY(null);
+  };
+
+  const dragOverlay =
+    dragStartY != null && dragCurrentY != null
+      ? {
+          top: Math.min(dragStartY, dragCurrentY),
+          height: Math.abs(dragCurrentY - dragStartY),
+        }
+      : null;
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -39,7 +104,12 @@ export function CalendarDayView() {
         ))}
       </div>
       <div className="relative flex-1 overflow-auto">
-        <div className="relative min-h-full">
+        <div
+          className="relative min-h-full"
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+        >
           {HOURS.map(hour => (
             <div
               key={hour}
@@ -47,6 +117,16 @@ export function CalendarDayView() {
               style={{ height: "3rem" }}
             />
           ))}
+
+          {dragOverlay && (
+            <div
+              className="pointer-events-none absolute left-1 right-1 rounded-md bg-primary/20"
+              style={{
+                top: dragOverlay.top,
+                height: dragOverlay.height,
+              }}
+            />
+          )}
 
           {dayEvents.map(event => {
             const start = parseISO(event.startDate);
@@ -63,7 +143,7 @@ export function CalendarDayView() {
             return (
               <div
                 key={event.id}
-                className="absolute left-1 right-1 rounded-md border bg-primary/10 px-2 py-1 text-xs"
+                className="absolute left-1 right-1 rounded-md border bg-primary/20 px-2 py-1 text-xs"
                 style={{
                   top: `${topPercent}%`,
                   height: `${heightPercent}%`,

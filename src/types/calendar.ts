@@ -23,6 +23,11 @@ export interface CalendarEvent {
   meta?: CalendarEventMeta;
 }
 
+export type NewEventDraft = {
+  startDate: string;
+  endDate: string;
+};
+
 export type CalendarActionType =
   | "ADD_EVENT"
   | "UPDATE_EVENT"

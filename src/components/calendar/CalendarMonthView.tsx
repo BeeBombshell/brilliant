@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { startOfMonth, endOfMonth, addDays, parseISO, isSameDay, format, isToday, startOfWeek } from "date-fns";
+import { startOfMonth, addDays, parseISO, isSameDay, format, isToday, startOfWeek } from "date-fns";
 import { useAtom } from "jotai";
 
 import { selectedDateAtom, eventsAtom } from "@/state/calendarAtoms";
@@ -26,7 +26,7 @@ export function CalendarMonthView() {
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
 
   const monthStart = startOfMonth(selectedDate);
-  const monthEnd = endOfMonth(selectedDate);
+  // const monthEnd = endOfMonth(selectedDate);
   const calendarStart = startOfWeek(monthStart);
 
   // Generate 6 weeks (42 days) for consistent grid
@@ -56,7 +56,7 @@ export function CalendarMonthView() {
 
         {/* Calendar grid */}
         <div className="grid h-[calc(100%-40px)] grid-cols-7">
-          {days.map((day, index) => {
+          {days.map((day) => {
             const inMonth = day.getMonth() === selectedDate.getMonth();
             const isSunday = day.getDay() === 0;
             const dayEvents = eventsForDay(day).slice(0, 3);

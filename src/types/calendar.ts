@@ -10,7 +10,7 @@ export type EventColor =
   | "gray";
 
 export interface CalendarEventMeta {
-  source: "user" | "ai";
+  source: "user" | "ai" | "system";
 }
 
 export interface CalendarEvent {
@@ -21,6 +21,7 @@ export interface CalendarEvent {
   endDate: string; // ISO
   color: EventColor;
   meta?: CalendarEventMeta;
+  googleEventId?: string;
 }
 
 export type NewEventDraft = {

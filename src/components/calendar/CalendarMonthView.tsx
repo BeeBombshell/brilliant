@@ -6,6 +6,7 @@ import { selectedDateAtom, eventsAtom } from "@/state/calendarAtoms";
 import { EventDetailsDialog } from "@/components/calendar/EventDetailsDialog";
 import type { EventColor, CalendarEvent } from "@/types/calendar";
 import { cn } from "@/lib/utils";
+import { useCalendarActions } from "@/hooks/useCalendarActions";
 
 const WEEK_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -24,6 +25,7 @@ export function CalendarMonthView() {
   const [selectedDate] = useAtom(selectedDateAtom);
   const [events] = useAtom(eventsAtom);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const { changeView, changeDate } = useCalendarActions();
 
   const monthStart = startOfMonth(selectedDate);
   // const monthEnd = endOfMonth(selectedDate);
@@ -36,6 +38,11 @@ export function CalendarMonthView() {
     events.filter(event =>
       isSameDay(parseISO(event.startDate), day)
     );
+
+  const handleDayClick = (day: Date) => {
+    changeDate(day);
+    changeView("day");
+  };
 
   return (
     <>
@@ -76,6 +83,7 @@ export function CalendarMonthView() {
               >
                 {/* Day number button */}
                 <button
+                  onClick={() => handleDayClick(day)}
                   className={cn(
                     "flex size-6 translate-x-1 items-center justify-center rounded-full text-xs font-semibold hover:bg-accent",
                     "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
@@ -101,9 +109,12 @@ export function CalendarMonthView() {
                     </button>
                   ))}
                   {extraCount > 0 && (
-                    <div className="px-1 text-[0.7rem] font-semibold text-muted-foreground">
+                    <button
+                      onClick={() => handleDayClick(day)}
+                      className="w-full rounded-md px-1 py-0.5 text-left text-[0.7rem] font-semibold text-primary transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    >
                       +{extraCount} more
-                    </div>
+                    </button>
                   )}
                 </div>
               </div>

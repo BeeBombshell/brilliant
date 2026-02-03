@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { parseISO, format, isWithinInterval } from "date-fns";
 import type { CalendarEvent } from "@/types/calendar";
 
@@ -17,7 +18,16 @@ const colorClasses: Record<string, string> = {
 };
 
 export function HappeningNowSidebar({ events, onEventClick }: HappeningNowSidebarProps) {
-  const now = new Date();
+  const [now, setNow] = useState(new Date());
+
+  // Update current time every 30 seconds to refresh "happening now" status
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setNow(new Date());
+    }, 30000); // Update every 30 seconds
+
+    return () => clearInterval(interval);
+  }, []);
 
   const currentEvents = events.filter(event => {
     const start = parseISO(event.startDate);

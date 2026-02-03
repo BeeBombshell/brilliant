@@ -22,6 +22,8 @@ const dotColorClasses: Record<EventColor, string> = {
   gray: "fill-slate-600",
 };
 
+const DRAG_THRESHOLD = 5; // pixels - minimum movement to be considered a drag
+
 export function CalendarWeekView() {
   const [selectedDate] = useAtom(selectedDateAtom);
   const [events] = useAtom(eventsAtom);
@@ -30,6 +32,7 @@ export function CalendarWeekView() {
     dayIndex: number;
     startY: number;
     currentY: number;
+    isDragging: boolean;
   } | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
 
@@ -43,7 +46,7 @@ export function CalendarWeekView() {
     const container = event.currentTarget;
     const rect = container.getBoundingClientRect();
     const y = event.clientY - rect.top + container.scrollTop;
-    setDragState({ dayIndex, startY: y, currentY: y });
+    setDragState({ dayIndex, startY: y, currentY: y, isDragging: false });
     container.setPointerCapture(event.pointerId);
   });
 
@@ -53,8 +56,12 @@ export function CalendarWeekView() {
       const container = event.currentTarget;
       const rect = container.getBoundingClientRect();
       const y = event.clientY - rect.top + container.scrollTop;
+
+      // Only set isDragging to true if we've moved beyond the threshold
+      const isDragging = dragState.isDragging || Math.abs(y - dragState.startY) > DRAG_THRESHOLD;
+
       setDragState(current =>
-        current ? { ...current, currentY: y } : current
+        current ? { ...current, currentY: y, isDragging } : current
       );
     };
 
@@ -64,39 +71,43 @@ export function CalendarWeekView() {
         const container = event.currentTarget;
         if (!dragState || dragState.dayIndex !== dayIndex) {
           container.releasePointerCapture(event.pointerId);
+          setDragState(null);
           return;
         }
 
-        const startY = Math.min(dragState.startY, dragState.currentY);
-        const endY = Math.max(dragState.startY, dragState.currentY);
+        // Only create an event if we actually dragged (beyond threshold)
+        if (dragState.isDragging) {
+          const startY = Math.min(dragState.startY, dragState.currentY);
+          const endY = Math.max(dragState.startY, dragState.currentY);
 
-        const totalHeight = container.scrollHeight;
-        const startMinutes = (startY / totalHeight) * minutesInDay;
-        const endMinutes = (endY / totalHeight) * minutesInDay;
+          const totalHeight = container.scrollHeight;
+          const startMinutes = (startY / totalHeight) * minutesInDay;
+          const endMinutes = (endY / totalHeight) * minutesInDay;
 
-        const snapTo = 30;
-        const snappedStart = Math.floor(startMinutes / snapTo) * snapTo;
-        const snappedEnd = Math.max(
-          snappedStart + snapTo,
-          Math.ceil(endMinutes / snapTo) * snapTo
-        );
+          const snapTo = 30;
+          const snappedStart = Math.floor(startMinutes / snapTo) * snapTo;
+          const snappedEnd = Math.max(
+            snappedStart + snapTo,
+            Math.ceil(endMinutes / snapTo) * snapTo
+          );
 
-        const dayStart = new Date(
-          day.getFullYear(),
-          day.getMonth(),
-          day.getDate(),
-          0,
-          0,
-          0
-        );
+          const dayStart = new Date(
+            day.getFullYear(),
+            day.getMonth(),
+            day.getDate(),
+            0,
+            0,
+            0
+          );
 
-        const startDate = new Date(dayStart.getTime() + snappedStart * 60000);
-        const endDate = new Date(dayStart.getTime() + snappedEnd * 60000);
+          const startDate = new Date(dayStart.getTime() + snappedStart * 60000);
+          const endDate = new Date(dayStart.getTime() + snappedEnd * 60000);
 
-        setDraft({
-          startDate: startDate.toISOString(),
-          endDate: endDate.toISOString(),
-        });
+          setDraft({
+            startDate: startDate.toISOString(),
+            endDate: endDate.toISOString(),
+          });
+        }
 
         container.releasePointerCapture(event.pointerId);
         setDragState(null);
@@ -149,7 +160,7 @@ export function CalendarWeekView() {
               });
 
               const dragOverlay =
-                dragState && dragState.dayIndex === index
+                dragState && dragState.dayIndex === index && dragState.isDragging
                   ? {
                     top: Math.min(dragState.startY, dragState.currentY),
                     height: Math.abs(dragState.currentY - dragState.startY),
@@ -208,9 +219,10 @@ export function CalendarWeekView() {
                       const end = parseISO(event.endDate);
                       const topMinutes =
                         (start.getTime() - dayStart.getTime()) / 60000;
+                      const actualDuration = (end.getTime() - start.getTime()) / 60000;
                       const durationMinutes = Math.max(
-                        30,
-                        (end.getTime() - start.getTime()) / 60000
+                        30, // Minimum 30 minutes for display purposes
+                        actualDuration
                       );
 
                       const topPercent = (topMinutes / minutesInDay) * 100;
@@ -221,6 +233,18 @@ export function CalendarWeekView() {
                         <button
                           key={event.id}
                           onClick={() => setSelectedEvent(event)}
+                          onPointerDown={(e) => {
+                            // Stop propagation to prevent the grid's drag handler from firing
+                            e.stopPropagation();
+                          }}
+                          onPointerMove={(e) => {
+                            // Stop propagation to prevent the grid's drag handler from firing
+                            e.stopPropagation();
+                          }}
+                          onPointerUp={(e) => {
+                            // Stop propagation to prevent the grid's drag handler from firing
+                            e.stopPropagation();
+                          }}
                           className="absolute flex left-1 right-1 overflow-hidden rounded-md border border-border bg-muted/50 px-2 pt-1 pb-2 text-left text-xs text-foreground transition-all hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                           style={{
                             top: `${topPercent}%`,
@@ -233,7 +257,7 @@ export function CalendarWeekView() {
                             </svg>
                             <div className="min-w-0 flex-1">
                               <div className="truncate font-semibold leading-tight">{event.title}</div>
-                              {durationMinutes > 25 && event.description && (
+                              {actualDuration > 30 && event.description && (
                                 <div className="mt-0.5 line-clamp-2 text-[0.7rem] leading-tight text-muted-foreground">
                                   {event.description}
                                 </div>

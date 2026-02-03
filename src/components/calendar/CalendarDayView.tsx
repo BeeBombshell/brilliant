@@ -188,9 +188,10 @@ export function CalendarDayView() {
                   const start = parseISO(event.startDate);
                   const end = parseISO(event.endDate);
                   const topMinutes = differenceInMinutes(start, dayStart);
+                  const actualDuration = differenceInMinutes(end, start);
                   const durationMinutes = Math.max(
-                    15, // Minimum 15 minutes for display purposes only
-                    differenceInMinutes(end, start)
+                    30, // Minimum 30 minutes for display purposes
+                    actualDuration
                   );
 
                   const topPercent = (topMinutes / minutesInDay) * 100;
@@ -224,7 +225,7 @@ export function CalendarDayView() {
                         </svg>
                         <div className="min-w-0 flex-1">
                           <div className="truncate font-semibold leading-tight">{event.title}</div>
-                          {durationMinutes > 25 && event.description && (
+                          {actualDuration > 30 && event.description && (
                             <div className="mt-0.5 line-clamp-2 text-[0.7rem] leading-tight text-muted-foreground">
                               {event.description}
                             </div>

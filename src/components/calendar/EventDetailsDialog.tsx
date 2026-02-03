@@ -35,6 +35,7 @@ const colorLabels: Record<string, { name: string; class: string }> = {
 export function EventDetailsDialog({ event, open, onClose }: EventDetailsDialogProps) {
   const { updateEvent, deleteEvent } = useCalendarActions();
   const [isEditing, setIsEditing] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Form state
   const [title, setTitle] = useState("");
@@ -42,6 +43,7 @@ export function EventDetailsDialog({ event, open, onClose }: EventDetailsDialogP
   const [startInput, setStartInput] = useState("");
   const [endInput, setEndInput] = useState("");
   const [color, setColor] = useState<EventColor>("blue");
+  const [titleError, setTitleError] = useState("");
 
   const toLocalInputValue = (iso: string) => {
     const date = parseISO(iso);
@@ -69,6 +71,8 @@ export function EventDetailsDialog({ event, open, onClose }: EventDetailsDialogP
       setEndInput(toLocalInputValue(event.endDate));
       setColor(event.color);
       setIsEditing(false);
+      setShowDeleteConfirm(false);
+      setTitleError("");
     }
   }, [event]);
 
@@ -80,20 +84,26 @@ export function EventDetailsDialog({ event, open, onClose }: EventDetailsDialogP
 
   const handleClose = () => {
     setIsEditing(false);
+    setShowDeleteConfirm(false);
     onClose();
   };
 
   const handleSave = () => {
-    if (!title.trim()) return;
+    if (!title.trim()) {
+      setTitleError("Event title is required");
+      return;
+    }
+    setTitleError("");
 
     const startFromInput = fromLocalInputValue(startInput);
     const endFromInput = fromLocalInputValue(endInput);
 
     if (!startFromInput || !endFromInput) return;
 
-    // Ensure end is after start
+    // Ensure end is after start (default to 30 minutes if not)
+    let finalEnd = endFromInput;
     if (endFromInput <= startFromInput) {
-      endFromInput.setMinutes(startFromInput.getMinutes() + 15);
+      finalEnd = new Date(startFromInput.getTime() + 30 * 60000);
     }
 
     updateEvent(event.id, () => ({
@@ -101,7 +111,7 @@ export function EventDetailsDialog({ event, open, onClose }: EventDetailsDialogP
       title: title.trim(),
       description: description.trim() || undefined,
       startDate: formatISO(startFromInput),
-      endDate: formatISO(endFromInput),
+      endDate: formatISO(finalEnd),
       color,
     }));
 
@@ -110,13 +120,13 @@ export function EventDetailsDialog({ event, open, onClose }: EventDetailsDialogP
   };
 
   const handleDelete = () => {
-    if (confirm(`Are you sure you want to delete "${event.title}"?`)) {
-      deleteEvent(event.id);
-      onClose();
-    }
+    deleteEvent(event.id);
+    setShowDeleteConfirm(false);
+    onClose();
   };
 
   return (
+    <>
     <AlertDialog open={open} onOpenChange={(openValue) => !openValue && handleClose()}>
       <AlertDialogContent className="max-w-2xl">
         <AlertDialogHeader>
@@ -153,10 +163,17 @@ export function EventDetailsDialog({ event, open, onClose }: EventDetailsDialogP
               <Input
                 autoFocus
                 value={title}
-                onChange={e => setTitle(e.target.value)}
+                onChange={e => {
+                  setTitle(e.target.value);
+                  if (titleError) setTitleError("");
+                }}
                 placeholder="e.g., Team Standup, Client Call, Deep Work"
                 className="text-base"
+                aria-invalid={!!titleError}
               />
+              {titleError && (
+                <p className="text-sm text-destructive">{titleError}</p>
+              )}
             </div>
             <div className="space-y-2.5">
               <label className="text-sm font-medium flex items-center gap-2">
@@ -341,7 +358,7 @@ export function EventDetailsDialog({ event, open, onClose }: EventDetailsDialogP
         <AlertDialogFooter>
           {isEditing ? (
             <>
-              <Button variant="destructive" onClick={handleDelete}>
+              <Button variant="destructive" onClick={() => setShowDeleteConfirm(true)}>
                 Delete
               </Button>
               <div className="flex-1" />
@@ -365,5 +382,26 @@ export function EventDetailsDialog({ event, open, onClose }: EventDetailsDialogP
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Event</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{event?.title}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete}>
+              Delete Event
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

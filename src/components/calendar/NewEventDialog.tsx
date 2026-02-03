@@ -26,6 +26,7 @@ export function NewEventDialog() {
   const [startInput, setStartInput] = useState("");
   const [endInput, setEndInput] = useState("");
   const [color, setColor] = useState<EventColor>("blue");
+  const [titleError, setTitleError] = useState("");
 
   const toLocalInputValue = (iso: string) => {
     const date = parseISO(iso);
@@ -51,6 +52,7 @@ export function NewEventDialog() {
       setStartInput(toLocalInputValue(draft.startDate));
       setEndInput(toLocalInputValue(draft.endDate));
       setColor("blue");
+      setTitleError("");
     }
   }, [draft]);
 
@@ -62,18 +64,20 @@ export function NewEventDialog() {
 
   const handleCreate = () => {
     if (!title.trim()) {
+      setTitleError("Event title is required");
       return;
     }
+    setTitleError("");
 
     const startFromInput = fromLocalInputValue(startInput);
     const endFromInput = fromLocalInputValue(endInput);
 
-    const start = startFromInput ?? parseISO(draft.startDate);
-    const end = endFromInput ?? parseISO(draft.endDate);
+    let start = startFromInput ?? parseISO(draft.startDate);
+    let end = endFromInput ?? parseISO(draft.endDate);
 
-    // Ensure end is after start (default to 15 minutes if not)
+    // Ensure end is after start (default to 30 minutes if not)
     if (end <= start) {
-      end.setMinutes(start.getMinutes() + 15);
+      end = new Date(start.getTime() + 30 * 60000);
     }
 
     addEvent({
@@ -105,10 +109,17 @@ export function NewEventDialog() {
             <Input
               autoFocus
               value={title}
-              onChange={event => setTitle(event.target.value)}
+              onChange={event => {
+                setTitle(event.target.value);
+                if (titleError) setTitleError("");
+              }}
               placeholder="e.g., Team Standup, Client Call, Deep Work"
               className="text-base"
+              aria-invalid={!!titleError}
             />
+            {titleError && (
+              <p className="text-sm text-destructive">{titleError}</p>
+            )}
           </div>
           <div className="space-y-2.5">
             <label className="text-sm font-medium flex items-center gap-2">

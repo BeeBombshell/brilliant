@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-const SCOPES = "https://www.googleapis.com/auth/calendar.events";
+const SCOPES = "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email";
 
 interface GoogleAuthContextType {
     isAuthenticated: boolean;
@@ -100,8 +100,17 @@ export function GoogleAuthProvider({ children }: { children: React.ReactNode }) 
                     // Restore session
                     gapi.client.setToken({ access_token: storedToken });
                     setIsAuthenticated(true);
+
                     if (storedUser) {
-                        setUser(JSON.parse(storedUser));
+                        try {
+                            setUser(JSON.parse(storedUser));
+                        } catch (e) {
+                            // Invalid JSON, re-fetch
+                            fetchAndSetUser(storedToken);
+                        }
+                    } else {
+                        // Token exists but no profile (migration or error), fetch it
+                        fetchAndSetUser(storedToken);
                     }
                 } else {
                     // Clear invalid/expired session
@@ -126,20 +135,10 @@ export function GoogleAuthProvider({ children }: { children: React.ReactNode }) 
         };
     }, []);
 
-    const handleLoginSuccess = async (response: google.accounts.oauth2.TokenResponse) => {
-        const expiresIn = parseInt(response.expires_in) * 1000;
-        const expirationTime = Date.now() + expiresIn;
-
-        localStorage.setItem("google_access_token", response.access_token);
-        localStorage.setItem("google_token_expiration", expirationTime.toString());
-
-        // Set token for GAPI
-        gapi.client.setToken({ access_token: response.access_token });
-
-        // Fetch user profile
+    const fetchAndSetUser = async (accessToken: string) => {
         try {
             const userInfoResponse = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-                headers: { Authorization: `Bearer ${response.access_token}` },
+                headers: { Authorization: `Bearer ${accessToken}` },
             });
             const userData = await userInfoResponse.json();
             const googleUser: GoogleUser = {
@@ -152,6 +151,20 @@ export function GoogleAuthProvider({ children }: { children: React.ReactNode }) 
         } catch (error) {
             console.error("Failed to fetch user info", error);
         }
+    };
+
+    const handleLoginSuccess = async (response: google.accounts.oauth2.TokenResponse) => {
+        const expiresIn = parseInt(response.expires_in) * 1000;
+        const expirationTime = Date.now() + expiresIn;
+
+        localStorage.setItem("google_access_token", response.access_token);
+        localStorage.setItem("google_token_expiration", expirationTime.toString());
+
+        // Set token for GAPI
+        gapi.client.setToken({ access_token: response.access_token });
+
+        // Fetch user profile
+        await fetchAndSetUser(response.access_token);
 
         setIsAuthenticated(true);
     };

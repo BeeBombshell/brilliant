@@ -10,15 +10,19 @@ export function GoogleCalendarSync() {
     const { isAuthenticated, isLoading } = useGoogleAuth();
     const [, setEvents] = useAtom(eventsAtom);
 
-    // Sync from Google on mount/auth
+    // Sync from Google on mount/auth and poll every 60s
     useEffect(() => {
         if (!isAuthenticated || isLoading) return;
 
         const fetchGoogleEvents = async () => {
             try {
+                // Fetch from 7 weeks ago to capture recent history as requested
+                const timeMin = new Date();
+                timeMin.setDate(timeMin.getDate() - 49); // 7 weeks
+
                 const response = await gapi.client.calendar.events.list({
                     'calendarId': 'primary',
-                    'timeMin': (new Date()).toISOString(),
+                    'timeMin': timeMin.toISOString(),
                     'showDeleted': false,
                     'singleEvents': true,
                     'orderBy': 'startTime'
@@ -26,40 +30,59 @@ export function GoogleCalendarSync() {
 
                 const googleEvents = response.result.items || [];
 
-                // Merge strategy: Upsert based on googleEventId or title similarity?
-                // For this task, we will just add them if they don't exist by googleEventId.
-                // A robust sync is complex; simplifying for the feature request.
-
                 setEvents(currentEvents => {
+                    // Create a map of existing events by googleEventId for quick lookup
+                    const existingMap = new Map(currentEvents.map(e => [e.googleEventId, e]));
                     const newEvents = [...currentEvents];
+                    let hasChanges = false;
 
                     googleEvents.forEach((gEvent: any) => {
-                        const existingIndex = newEvents.findIndex(e => e.googleEventId === gEvent.id);
+                        const existingEvent = existingMap.get(gEvent.id);
+
+                        // If event exists and hasn't changed, skip
+                        // Simple check on update time or just always update if exists to be safe
+                        // For this implementation, we'll upsert.
 
                         const start = gEvent.start.dateTime || gEvent.start.date;
                         const end = gEvent.end.dateTime || gEvent.end.date;
 
-                        // If pure date (all day), we might need to handle it. For now, assuming dateTime usually.
-                        // If just date, append T00:00:00 for ISO parsing consistency in our app if needed.
+                        // Check if we really need to update to avoid unnecessary re-renders/loops
+                        // (Ideally we compare etags or updated timestamps, but basic props check helps)
+                        if (existingEvent) {
+                            if (existingEvent.title === gEvent.summary &&
+                                existingEvent.description === gEvent.description &&
+                                existingEvent.startDate === start &&
+                                existingEvent.endDate === end) {
+                                return;
+                            }
+                        }
 
                         const mappedEvent: CalendarEvent = {
-                            id: existingIndex >= 0 ? newEvents[existingIndex].id : uuid(),
+                            id: existingEvent ? existingEvent.id : uuid(),
                             title: gEvent.summary || "(No Title)",
                             description: gEvent.description,
                             startDate: start,
                             endDate: end,
-                            color: "blue", // Google colors are "1", "2" etc. Mapping is hard. Defaulting.
+                            color: "blue",
                             meta: { source: "system" },
                             googleEventId: gEvent.id
                         };
 
-                        if (existingIndex >= 0) {
-                            newEvents[existingIndex] = mappedEvent;
+                        if (existingEvent) {
+                            // Update existing
+                            const index = newEvents.findIndex(e => e.id === existingEvent.id);
+                            if (index !== -1) {
+                                newEvents[index] = mappedEvent;
+                                hasChanges = true;
+                            }
                         } else {
+                            // Add new
                             newEvents.push(mappedEvent);
+                            hasChanges = true;
                         }
                     });
-                    return newEvents;
+
+                    return hasChanges ? newEvents : currentEvents;
                 });
 
             } catch (err) {
@@ -68,6 +91,11 @@ export function GoogleCalendarSync() {
         };
 
         fetchGoogleEvents();
+
+        // Auto-sync every 60 seconds
+        const intervalId = setInterval(fetchGoogleEvents, 60000);
+
+        return () => clearInterval(intervalId);
     }, [isAuthenticated, isLoading, setEvents]);
 
     // Sync to Google (Listeners)

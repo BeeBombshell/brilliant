@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { parseISO, differenceInMinutes, format, isToday } from "date-fns";
 import { useAtom } from "jotai";
 
@@ -124,6 +124,21 @@ export function CalendarDayView() {
       }
       : null;
 
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to current time on mount
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      const now = new Date();
+      const minutes = now.getHours() * 60 + now.getMinutes();
+      const top = (minutes / minutesInDay) * (24 * HOUR_HEIGHT);
+      const containerHeight = scrollContainerRef.current.clientHeight;
+
+      // Center the current time
+      scrollContainerRef.current.scrollTop = top - containerHeight / 2;
+    }
+  }, []);
+
   return (
     <>
       <EventDetailsDialog
@@ -132,7 +147,7 @@ export function CalendarDayView() {
         onClose={() => setSelectedEvent(null)}
       />
       <div className="flex h-full overflow-hidden bg-background">
-        <div className="flex flex-1 flex-col overflow-auto">
+        <div ref={scrollContainerRef} className="flex flex-1 flex-col overflow-auto">
           <div className="flex min-w-full flex-1">
             {/* Hour labels column */}
             <div className="sticky left-0 z-30 w-18 flex-none border-r bg-background text-right text-xs text-muted-foreground">

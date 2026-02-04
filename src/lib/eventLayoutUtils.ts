@@ -28,7 +28,7 @@ export function getEventDays(event: CalendarEvent): Date[] {
 
 /**
  * Groups overlapping events for side-by-side rendering
- * Adapted from big-calendar's groupEvents
+ * Only events that actually overlap get narrow widths
  */
 export function groupOverlappingEvents(events: CalendarEvent[], day: Date): EventColumn[] {
   const dayStart = startOfDay(day);
@@ -41,6 +41,10 @@ export function groupOverlappingEvents(events: CalendarEvent[], day: Date): Even
     return eventStart <= dayEnd && eventEnd >= dayStart;
   });
 
+  if (dayEvents.length === 0) {
+    return [];
+  }
+
   // Sort by start time, then by duration (longer first)
   const sortedEvents = dayEvents.sort((a, b) => {
     const aStart = parseISO(a.startDate).getTime();
@@ -52,42 +56,116 @@ export function groupOverlappingEvents(events: CalendarEvent[], day: Date): Even
     return bDuration - aDuration;
   });
 
-  // Create groups of non-overlapping events
-  const groups: CalendarEvent[][] = [];
+  // Helper to check if two events overlap
+  const eventsOverlap = (e1: CalendarEvent, e2: CalendarEvent): boolean => {
+    const e1Start = parseISO(e1.startDate).getTime();
+    const e1End = parseISO(e1.endDate).getTime();
+    const e2Start = parseISO(e2.startDate).getTime();
+    const e2End = parseISO(e2.endDate).getTime();
+    return e1Start < e2End && e2Start < e1End;
+  };
 
-  for (const event of sortedEvents) {
-    const eventStart = parseISO(event.startDate);
+  // Build overlap clusters - groups of events that share any overlap
+  const clusters: CalendarEvent[][] = [];
+  const eventToCluster = new Map<string, number>();
 
-    let placed = false;
-    for (const group of groups) {
-      const lastEventInGroup = group[group.length - 1];
-      const lastEventEnd = parseISO(lastEventInGroup.endDate);
+  sortedEvents.forEach((event) => {
+    // Find all clusters this event overlaps with
+    const overlappingClusters = new Set<number>();
 
-      if (eventStart >= lastEventEnd) {
-        group.push(event);
-        placed = true;
-        break;
+    sortedEvents.forEach((other) => {
+      if (other.id !== event.id && eventsOverlap(event, other)) {
+        const clusterIdx = eventToCluster.get(other.id);
+        if (clusterIdx !== undefined) {
+          overlappingClusters.add(clusterIdx);
+        }
       }
-    }
-
-    if (!placed) {
-      groups.push([event]);
-    }
-  }
-
-  // Calculate positions
-  const columns: EventColumn[] = [];
-  const groupCount = groups.length;
-
-  groups.forEach((group, groupIndex) => {
-    group.forEach((event) => {
-      columns.push({
-        event,
-        left: (groupIndex / groupCount) * 100,
-        width: (1 / groupCount) * 100,
-        zIndex: groupIndex,
-      });
     });
+
+    if (overlappingClusters.size === 0) {
+      // No overlaps - create a new cluster with just this event
+      const newClusterIdx = clusters.length;
+      clusters.push([event]);
+      eventToCluster.set(event.id, newClusterIdx);
+    } else if (overlappingClusters.size === 1) {
+      // Overlaps with one cluster - add to it
+      const clusterIdx = Array.from(overlappingClusters)[0];
+      clusters[clusterIdx].push(event);
+      eventToCluster.set(event.id, clusterIdx);
+    } else {
+      // Overlaps with multiple clusters - merge them
+      const clusterIndices = Array.from(overlappingClusters).sort((a, b) => a - b);
+      const primaryIdx = clusterIndices[0];
+
+      // Merge all clusters into the first one
+      clusterIndices.slice(1).reverse().forEach((idx) => {
+        clusters[primaryIdx].push(...clusters[idx]);
+        clusters[idx].forEach((e) => eventToCluster.set(e.id, primaryIdx));
+        clusters.splice(idx, 1);
+
+        // Update cluster indices for events after the removed cluster
+        eventToCluster.forEach((value, key) => {
+          if (value > idx) {
+            eventToCluster.set(key, value - 1);
+          }
+        });
+      });
+
+      clusters[primaryIdx].push(event);
+      eventToCluster.set(event.id, primaryIdx);
+    }
+  });
+
+  // Now layout each cluster independently
+  const columns: EventColumn[] = [];
+
+  clusters.forEach((cluster) => {
+    if (cluster.length === 1) {
+      // Single event in cluster - full width
+      columns.push({
+        event: cluster[0],
+        left: 0,
+        width: 100,
+        zIndex: 0,
+      });
+    } else {
+      // Multiple overlapping events - use column layout
+      const clusterGroups: CalendarEvent[][] = [];
+
+      for (const event of cluster) {
+        const eventStart = parseISO(event.startDate);
+
+        let placed = false;
+        for (const group of clusterGroups) {
+          const canPlace = group.every((groupEvent) => {
+            const groupEnd = parseISO(groupEvent.endDate);
+            return eventStart >= groupEnd;
+          });
+
+          if (canPlace) {
+            group.push(event);
+            placed = true;
+            break;
+          }
+        }
+
+        if (!placed) {
+          clusterGroups.push([event]);
+        }
+      }
+
+      const groupCount = clusterGroups.length;
+      clusterGroups.forEach((group, groupIndex) => {
+        group.forEach((event) => {
+          columns.push({
+            event,
+            left: (groupIndex / groupCount) * 100,
+            width: (1 / groupCount) * 100,
+            zIndex: groupIndex,
+          });
+        });
+      });
+    }
   });
 
   return columns;

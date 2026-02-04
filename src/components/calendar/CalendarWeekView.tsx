@@ -20,7 +20,8 @@ export function CalendarWeekView() {
   const [events] = useAtom(eventsAtom);
   const [, setDraft] = useAtom(newEventDraftAtom);
   const [dragState, setDragState] = useState<{
-    dayIndex: number;
+    startDayIndex: number;
+    currentDayIndex: number;
     startY: number;
     currentY: number;
     isDragging: boolean;
@@ -39,13 +40,48 @@ export function CalendarWeekView() {
     const container = event.currentTarget;
     const rect = container.getBoundingClientRect();
     const y = event.clientY - rect.top + container.scrollTop;
-    setDragState({ dayIndex, startY: y, currentY: y, isDragging: false });
+    setDragState({
+      startDayIndex: dayIndex,
+      currentDayIndex: dayIndex,
+      startY: y,
+      currentY: y,
+      isDragging: false
+    });
     container.setPointerCapture(event.pointerId);
   });
 
+  // Global pointer move handler to detect day changes
+  const handleGlobalPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragState) return;
+
+    // Find which day column the pointer is over
+    const dayElements = event.currentTarget.querySelectorAll('[data-day-index]');
+    let currentDayIndex = dragState.currentDayIndex;
+
+    dayElements.forEach((element, idx) => {
+      const rect = element.getBoundingClientRect();
+      if (event.clientX >= rect.left && event.clientX <= rect.right) {
+        currentDayIndex = idx;
+      }
+    });
+
+    // Get the Y position relative to the current day column
+    const currentDayElement = dayElements[currentDayIndex] as HTMLElement | undefined;
+    if (currentDayElement) {
+      const timeGrid = currentDayElement.querySelector('[data-time-grid]') as HTMLElement;
+      if (timeGrid) {
+        const rect = timeGrid.getBoundingClientRect();
+        const y = event.clientY - rect.top + timeGrid.scrollTop;
+        setDragState(current =>
+          current ? { ...current, currentDayIndex, currentY: y } : current
+        );
+      }
+    }
+  };
+
   const handlePointerMove =
     (dayIndex: number) => (event: React.PointerEvent<HTMLDivElement>) => {
-      if (!dragState || dragState.dayIndex !== dayIndex) return;
+      if (!dragState) return;
       const container = event.currentTarget;
       const rect = container.getBoundingClientRect();
       const y = event.clientY - rect.top + container.scrollTop;
@@ -54,15 +90,15 @@ export function CalendarWeekView() {
       const isDragging = dragState.isDragging || Math.abs(y - dragState.startY) > DRAG_THRESHOLD;
 
       setDragState(current =>
-        current ? { ...current, currentY: y, isDragging } : current
+        current ? { ...current, currentDayIndex: dayIndex, currentY: y, isDragging } : current
       );
     };
 
   const handlePointerUp =
-    (dayIndex: number, day: Date) =>
+    (_dayIndex: number, _day: Date) =>
       (event: React.PointerEvent<HTMLDivElement>) => {
         const container = event.currentTarget;
-        if (!dragState || dragState.dayIndex !== dayIndex) {
+        if (!dragState) {
           container.releasePointerCapture(event.pointerId);
           setDragState(null);
           return;
@@ -70,6 +106,10 @@ export function CalendarWeekView() {
 
         // Only create an event if we actually dragged (beyond threshold)
         if (dragState.isDragging) {
+          const startDayIdx = Math.min(dragState.startDayIndex, dragState.currentDayIndex);
+          const endDayIdx = Math.max(dragState.startDayIndex, dragState.currentDayIndex);
+          const isMultiDay = startDayIdx !== endDayIdx;
+
           const startY = Math.min(dragState.startY, dragState.currentY);
           const endY = Math.max(dragState.startY, dragState.currentY);
 
@@ -84,17 +124,49 @@ export function CalendarWeekView() {
             Math.ceil(endMinutes / snapTo) * snapTo
           );
 
-          const dayStart = new Date(
-            day.getFullYear(),
-            day.getMonth(),
-            day.getDate(),
+          // Get the start and end days
+          const startDay = days[startDayIdx];
+          const endDay = days[endDayIdx];
+
+          const startDayTime = new Date(
+            startDay.getFullYear(),
+            startDay.getMonth(),
+            startDay.getDate(),
             0,
             0,
             0
           );
 
-          const startDate = new Date(dayStart.getTime() + snappedStart * 60000);
-          const endDate = new Date(dayStart.getTime() + snappedEnd * 60000);
+          const endDayTime = new Date(
+            endDay.getFullYear(),
+            endDay.getMonth(),
+            endDay.getDate(),
+            0,
+            0,
+            0
+          );
+
+          // For multi-day events, use the full time range from first day to last day
+          let startDate: Date;
+          let endDate: Date;
+
+          if (isMultiDay) {
+            // Multi-day: start time on first day, end time on last day
+            startDate = new Date(startDayTime.getTime() + snappedStart * 60000);
+            endDate = new Date(endDayTime.getTime() + snappedEnd * 60000);
+          } else {
+            // Single day: normal behavior
+            startDate = new Date(startDayTime.getTime() + snappedStart * 60000);
+            endDate = new Date(startDayTime.getTime() + snappedEnd * 60000);
+          }
+
+          console.log("Creating event:", {
+            isMultiDay,
+            startDayIdx,
+            endDayIdx,
+            startDate: startDate.toISOString(),
+            endDate: endDate.toISOString(),
+          });
 
           setDraft({
             startDate: startDate.toISOString(),
@@ -114,17 +186,36 @@ export function CalendarWeekView() {
         onClose={() => setSelectedEvent(null)}
       />
       <div className="flex h-full flex-col overflow-auto bg-background">
-        {/* Multi-day events row */}
-        <MultiDayEventsRow
-          events={events}
-          selectedDate={selectedDate}
-          onEventClick={setSelectedEvent}
-        />
+        {/* Sticky header section */}
+        <div className="sticky top-0 z-40 bg-background">
+          {/* Multi-day events row */}
+          <MultiDayEventsRow
+            events={events}
+            selectedDate={selectedDate}
+            onEventClick={setSelectedEvent}
+          />
+
+          {/* Day names row */}
+          <div className="flex">
+            <div className="w-18 border-b bg-background" />
+            <div className="flex flex-1">
+              {days.map((day) => (
+                <div
+                  key={`header-${day.toISOString()}`}
+                  className="flex h-10 flex-1 items-center justify-center border-b border-r bg-background text-xs font-medium last:border-r-0"
+                >
+                  <span className="text-muted-foreground">{format(day, "EEE")}</span>
+                  <span className="ml-1 font-semibold">{format(day, "d")}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
 
         <div className="flex min-w-fit flex-1">
           {/* Hour labels column */}
           <div className="sticky left-0 z-30 flex w-18 flex-none flex-col border-r bg-background">
-            <div className="sticky top-0 z-40 h-10 border-b bg-background" />
+            {/* Empty spacer - hours start below the time grid */}
             <div className="text-right text-xs text-muted-foreground">
               {HOURS.map((hour, index) => (
                 <div key={hour} className="relative" style={{ height: `${HOUR_HEIGHT}px` }}>
@@ -139,7 +230,10 @@ export function CalendarWeekView() {
           </div>
 
           {/* Day columns */}
-          <div className="flex flex-1">
+          <div
+            className="flex flex-1"
+            onPointerMove={handleGlobalPointerMove}
+          >
             {days.map((day, index) => {
               // Filter to single-day events only (multi-day events are in the row above)
               const dayEvents = events.filter(event => {
@@ -155,28 +249,58 @@ export function CalendarWeekView() {
               // Group overlapping events for side-by-side layout
               const eventColumns = groupOverlappingEvents(dayEvents, day);
 
-              const dragOverlay =
-                dragState && dragState.dayIndex === index && dragState.isDragging
-                  ? {
+              // Check if this day is part of the drag selection
+              const minDayIdx = dragState ? Math.min(dragState.startDayIndex, dragState.currentDayIndex) : -1;
+              const maxDayIdx = dragState ? Math.max(dragState.startDayIndex, dragState.currentDayIndex) : -1;
+              const isDayInDragRange = dragState && dragState.isDragging && index >= minDayIdx && index <= maxDayIdx;
+
+              // Calculate overlay based on position in drag range
+              let dragOverlay = null;
+              if (isDayInDragRange && dragState) {
+                const isFirstDay = index === minDayIdx;
+                const isLastDay = index === maxDayIdx;
+                const isMiddleDay = !isFirstDay && !isLastDay;
+                const isSingleDay = minDayIdx === maxDayIdx;
+
+                if (isSingleDay) {
+                  // Single day: show time range
+                  dragOverlay = {
                     top: Math.min(dragState.startY, dragState.currentY),
                     height: Math.abs(dragState.currentY - dragState.startY),
-                  }
-                  : null;
+                  };
+                } else if (isFirstDay) {
+                  // First day: from start time to end of day
+                  const startY = Math.min(dragState.startY, dragState.currentY);
+                  dragOverlay = {
+                    top: startY,
+                    height: (HOURS.length * HOUR_HEIGHT) - startY,
+                  };
+                } else if (isLastDay) {
+                  // Last day: from start of day to end time
+                  const endY = Math.max(dragState.startY, dragState.currentY);
+                  dragOverlay = {
+                    top: 0,
+                    height: endY,
+                  };
+                } else if (isMiddleDay) {
+                  // Middle days: full day
+                  dragOverlay = {
+                    top: 0,
+                    height: HOURS.length * HOUR_HEIGHT,
+                  };
+                }
+              }
 
               return (
                 <div
                   key={day.toISOString()}
                   className="min-w-[140px] flex-1 border-r last:border-r-0"
+                  data-day-index={index}
                 >
-                  {/* Day header */}
-                  <div className="sticky top-0 z-20 flex h-10 items-center justify-center border-b bg-background text-xs font-medium">
-                    <span className="text-muted-foreground">{format(day, "EEE")}</span>
-                    <span className="ml-1 font-semibold">{format(day, "d")}</span>
-                  </div>
-
                   {/* Time grid */}
                   <div
                     className="relative"
+                    data-time-grid
                     onPointerDown={handlePointerDown(index)}
                     onPointerMove={handlePointerMove(index)}
                     onPointerUp={handlePointerUp(index, day)}

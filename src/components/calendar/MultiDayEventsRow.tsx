@@ -121,13 +121,13 @@ export function MultiDayEventsRow({
   });
 
   return (
-    <div className="flex min-h-fit">
-      <div className="w-18 border-b" />
-      <div className="grid flex-1 grid-cols-7 divide-x border-b border-l">
+    <div className="flex min-h-fit bg-background">
+      <div className="w-18 border-b bg-background" />
+      <div className="grid flex-1 grid-cols-7 divide-x border-b border-l bg-background">
         {weekDays.map((day, dayIndex) => {
           console.log(`Day ${dayIndex}:`, day.toISOString());
           return (
-          <div key={day.toISOString()} className="flex flex-col gap-1 py-1 min-h-[100px]">
+          <div key={day.toISOString()} className="flex flex-col gap-1 py-1 min-h-[100px] bg-background">
             {visibleRows.map((row, rowIndex) => {
               const event = row.find((e) => e.startIndex <= dayIndex && e.endIndex >= dayIndex);
               console.log(`  Row ${rowIndex}, Day ${dayIndex}:`, event ? event.title : "no event");

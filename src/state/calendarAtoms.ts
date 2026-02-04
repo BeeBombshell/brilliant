@@ -48,3 +48,13 @@ export const actionLogAtom = atom<string[]>(get =>
 
 export const newEventDraftAtom = atom<NewEventDraft | null>(null);
 
+export interface MultiDayDragState {
+  type: "create" | "move";
+  startDate: Date;
+  endDate: Date;
+  eventId?: string;
+  originalEvent?: CalendarEvent;
+}
+
+export const multiDayDragAtom = atom<MultiDayDragState | null>(null);
+

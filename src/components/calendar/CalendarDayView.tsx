@@ -1,28 +1,19 @@
-import { useState, useRef, useEffect } from "react";
-import { parseISO, differenceInMinutes, format, isToday } from "date-fns";
+import { useState, useRef, useEffect, useMemo } from "react";
+import { parseISO, differenceInMinutes, format, isToday, startOfDay, endOfDay } from "date-fns";
 import { useAtom } from "jotai";
 
 import { selectedDateAtom, eventsAtom, newEventDraftAtom } from "@/state/calendarAtoms";
 import { CurrentTimeIndicator } from "@/components/calendar/CurrentTimeIndicator";
 import { EventDetailsDialog } from "@/components/calendar/EventDetailsDialog";
 import { HappeningNowSidebar } from "@/components/calendar/HappeningNowSidebar";
-import type { EventColor, CalendarEvent } from "@/types/calendar";
+import { EventCard } from "@/components/calendar/EventCard";
+import { isMultiDayEvent, groupOverlappingEvents, getEventBlockStyle, getMultiDayPosition } from "@/lib/eventLayoutUtils";
+import { MultiDayEventBadge } from "@/components/calendar/MultiDayEventBadge";
+import type { CalendarEvent } from "@/types/calendar";
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const minutesInDay = 24 * 60;
 const HOUR_HEIGHT = 96; // 96px per hour (Big Calendar standard)
-
-// Dot color classes for the colored indicator
-const dotColorClasses: Record<EventColor, string> = {
-  blue: "fill-sky-600",
-  green: "fill-emerald-600",
-  red: "fill-rose-600",
-  yellow: "fill-amber-600",
-  purple: "fill-violet-600",
-  orange: "fill-orange-600",
-  gray: "fill-slate-600",
-};
-
 const DRAG_THRESHOLD = 5; // pixels - minimum movement to be considered a drag
 
 export function CalendarDayView() {
@@ -43,14 +34,23 @@ export function CalendarDayView() {
     0
   );
 
-  const dayEvents = events.filter(event => {
+  // Filter events for this day
+  const allDayEvents = events.filter(event => {
     const start = parseISO(event.startDate);
-    return (
-      start.getFullYear() === selectedDate.getFullYear() &&
-      start.getMonth() === selectedDate.getMonth() &&
-      start.getDate() === selectedDate.getDate()
-    );
+    const end = parseISO(event.endDate);
+    const dayStartTime = startOfDay(selectedDate);
+    const dayEndTime = endOfDay(selectedDate);
+
+    // Event overlaps with this day
+    return start <= dayEndTime && end >= dayStartTime;
   });
+
+  // Separate multi-day and single-day events
+  const multiDayEvents = allDayEvents.filter(isMultiDayEvent);
+  const singleDayEvents = allDayEvents.filter(event => !isMultiDayEvent(event));
+
+  // Group overlapping single-day events for side-by-side layout
+  const eventColumns = useMemo(() => groupOverlappingEvents(singleDayEvents, selectedDate), [singleDayEvents, selectedDate]);
 
   const handlePointerDown: React.PointerEventHandler<HTMLDivElement> = event => {
     const container = event.currentTarget;
@@ -148,6 +148,23 @@ export function CalendarDayView() {
       />
       <div className="flex h-full overflow-hidden bg-background">
         <div ref={scrollContainerRef} className="flex flex-1 flex-col overflow-auto">
+          {/* Multi-day events row */}
+          {multiDayEvents.length > 0 && (
+            <div className="flex border-b">
+              <div className="w-18 border-r" />
+              <div className="flex flex-1 flex-col gap-1 py-1 px-2">
+                {multiDayEvents.map(event => (
+                  <MultiDayEventBadge
+                    key={event.id}
+                    event={event}
+                    position={getMultiDayPosition(event, selectedDate)}
+                    onClick={() => setSelectedEvent(event)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="flex min-w-full flex-1">
             {/* Hour labels column */}
             <div className="sticky left-0 z-30 w-18 flex-none border-r bg-background text-right text-xs text-muted-foreground">
@@ -198,56 +215,33 @@ export function CalendarDayView() {
                 {/* Current time indicator */}
                 {isToday(selectedDate) && <CurrentTimeIndicator hourHeight={HOUR_HEIGHT} />}
 
-                {/* Events */}
-                {dayEvents.map(event => {
+                {/* Events with overlap support */}
+                {eventColumns.map((column) => {
+                  const event = column.event;
                   const start = parseISO(event.startDate);
                   const end = parseISO(event.endDate);
-                  const topMinutes = differenceInMinutes(start, dayStart);
-                  const actualDuration = differenceInMinutes(end, start);
                   const durationMinutes = Math.max(
                     30, // Minimum 30 minutes for display purposes
-                    actualDuration
+                    differenceInMinutes(end, start)
                   );
 
-                  const topPercent = (topMinutes / minutesInDay) * 100;
-                  const heightPercent = (durationMinutes / minutesInDay) * 100;
+                  const blockStyle = getEventBlockStyle(event, column, selectedDate);
 
                   return (
-                    <button
+                    <EventCard
                       key={event.id}
+                      event={event}
+                      durationMinutes={durationMinutes}
                       onClick={() => setSelectedEvent(event)}
-                      onPointerDown={(e) => {
-                        // Stop propagation to prevent the grid's drag handler from firing
-                        e.stopPropagation();
-                      }}
-                      onPointerMove={(e) => {
-                        // Stop propagation to prevent the grid's drag handler from firing
-                        e.stopPropagation();
-                      }}
-                      onPointerUp={(e) => {
-                        // Stop propagation to prevent the grid's drag handler from firing
-                        e.stopPropagation();
-                      }}
-                      className="absolute flex left-1 right-1 overflow-hidden rounded-md border border-border bg-muted/50 px-2 pt-1 pb-2 text-left text-xs text-foreground transition-all hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      onPointerDown={(e) => e.stopPropagation()}
                       style={{
-                        top: `${topPercent}%`,
-                        height: `${heightPercent}%`,
+                        top: blockStyle.top,
+                        left: blockStyle.left,
+                        width: blockStyle.width,
+                        height: blockStyle.height,
+                        zIndex: blockStyle.zIndex,
                       }}
-                    >
-                      <div className="flex items-start gap-1.5 mt-2">
-                        <svg width="8" height="8" viewBox="0 0 8 8" className={`shrink-0 ${dotColorClasses[event.color]}`}>
-                          <circle cx="4" cy="4" r="4" />
-                        </svg>
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate font-semibold leading-tight">{event.title}</div>
-                          {actualDuration > 30 && event.description && (
-                            <div className="mt-0.5 line-clamp-2 text-[0.7rem] leading-tight text-muted-foreground">
-                              {event.description}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </button>
+                    />
                   );
                 })}
               </div>

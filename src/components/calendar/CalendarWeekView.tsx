@@ -5,23 +5,14 @@ import { useAtom } from "jotai";
 import { selectedDateAtom, eventsAtom, newEventDraftAtom } from "@/state/calendarAtoms";
 import { CurrentTimeIndicator } from "@/components/calendar/CurrentTimeIndicator";
 import { EventDetailsDialog } from "@/components/calendar/EventDetailsDialog";
-import type { EventColor, CalendarEvent } from "@/types/calendar";
+import { MultiDayEventsRow } from "@/components/calendar/MultiDayEventsRow";
+import { EventCard } from "@/components/calendar/EventCard";
+import { isMultiDayEvent, groupOverlappingEvents, getEventBlockStyle } from "@/lib/eventLayoutUtils";
+import type { CalendarEvent } from "@/types/calendar";
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const minutesInDay = 24 * 60;
 const HOUR_HEIGHT = 96; // 96px per hour (Big Calendar standard)
-
-// Dot color classes for the colored indicator
-const dotColorClasses: Record<EventColor, string> = {
-  blue: "fill-sky-600",
-  green: "fill-emerald-600",
-  red: "fill-rose-600",
-  yellow: "fill-amber-600",
-  purple: "fill-violet-600",
-  orange: "fill-orange-600",
-  gray: "fill-slate-600",
-};
-
 const DRAG_THRESHOLD = 5; // pixels - minimum movement to be considered a drag
 
 export function CalendarWeekView() {
@@ -35,6 +26,8 @@ export function CalendarWeekView() {
     isDragging: boolean;
   } | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+
+  console.log("CalendarWeekView - Total events:", events.length, events);
 
   const dayOfWeek = selectedDate.getDay();
   const weekStart = addDays(selectedDate, -dayOfWeek);
@@ -121,6 +114,13 @@ export function CalendarWeekView() {
         onClose={() => setSelectedEvent(null)}
       />
       <div className="flex h-full flex-col overflow-auto bg-background">
+        {/* Multi-day events row */}
+        <MultiDayEventsRow
+          events={events}
+          selectedDate={selectedDate}
+          onEventClick={setSelectedEvent}
+        />
+
         <div className="flex min-w-fit flex-1">
           {/* Hour labels column */}
           <div className="sticky left-0 z-30 flex w-18 flex-none flex-col border-r bg-background">
@@ -141,23 +141,19 @@ export function CalendarWeekView() {
           {/* Day columns */}
           <div className="flex flex-1">
             {days.map((day, index) => {
-              const dayStart = new Date(
-                day.getFullYear(),
-                day.getMonth(),
-                day.getDate(),
-                0,
-                0,
-                0
-              );
-
+              // Filter to single-day events only (multi-day events are in the row above)
               const dayEvents = events.filter(event => {
                 const start = parseISO(event.startDate);
                 return (
+                  !isMultiDayEvent(event) &&
                   start.getFullYear() === day.getFullYear() &&
                   start.getMonth() === day.getMonth() &&
                   start.getDate() === day.getDate()
                 );
               });
+
+              // Group overlapping events for side-by-side layout
+              const eventColumns = groupOverlappingEvents(dayEvents, day);
 
               const dragOverlay =
                 dragState && dragState.dayIndex === index && dragState.isDragging
@@ -213,58 +209,33 @@ export function CalendarWeekView() {
                       />
                     )}
 
-                    {/* Events */}
-                    {dayEvents.map(event => {
+                    {/* Events with overlap support */}
+                    {eventColumns.map((column) => {
+                      const event = column.event;
                       const start = parseISO(event.startDate);
                       const end = parseISO(event.endDate);
-                      const topMinutes =
-                        (start.getTime() - dayStart.getTime()) / 60000;
-                      const actualDuration = (end.getTime() - start.getTime()) / 60000;
                       const durationMinutes = Math.max(
                         30, // Minimum 30 minutes for display purposes
-                        actualDuration
+                        (end.getTime() - start.getTime()) / 60000
                       );
 
-                      const topPercent = (topMinutes / minutesInDay) * 100;
-                      const heightPercent =
-                        (durationMinutes / minutesInDay) * 100;
+                      const blockStyle = getEventBlockStyle(event, column, day);
 
                       return (
-                        <button
+                        <EventCard
                           key={event.id}
+                          event={event}
+                          durationMinutes={durationMinutes}
                           onClick={() => setSelectedEvent(event)}
-                          onPointerDown={(e) => {
-                            // Stop propagation to prevent the grid's drag handler from firing
-                            e.stopPropagation();
-                          }}
-                          onPointerMove={(e) => {
-                            // Stop propagation to prevent the grid's drag handler from firing
-                            e.stopPropagation();
-                          }}
-                          onPointerUp={(e) => {
-                            // Stop propagation to prevent the grid's drag handler from firing
-                            e.stopPropagation();
-                          }}
-                          className="absolute flex left-1 right-1 overflow-hidden rounded-md border border-border bg-muted/50 px-2 pt-1 pb-2 text-left text-xs text-foreground transition-all hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          onPointerDown={(e) => e.stopPropagation()}
                           style={{
-                            top: `${topPercent}%`,
-                            height: `${heightPercent}%`,
+                            top: blockStyle.top,
+                            left: blockStyle.left,
+                            width: blockStyle.width,
+                            height: blockStyle.height,
+                            zIndex: blockStyle.zIndex,
                           }}
-                        >
-                          <div className="flex items-start gap-1.5 mt-2">
-                            <svg width="8" height="8" viewBox="0 0 8 8" className={`shrink-0 ${dotColorClasses[event.color]}`}>
-                              <circle cx="4" cy="4" r="4" />
-                            </svg>
-                            <div className="min-w-0 flex-1">
-                              <div className="truncate font-semibold leading-tight">{event.title}</div>
-                              {actualDuration > 30 && event.description && (
-                                <div className="mt-0.5 line-clamp-2 text-[0.7rem] leading-tight text-muted-foreground">
-                                  {event.description}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </button>
+                        />
                       );
                     })}
                   </div>

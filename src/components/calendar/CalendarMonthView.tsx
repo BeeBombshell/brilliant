@@ -73,6 +73,7 @@ export function CalendarMonthView() {
         {/* Calendar grid */}
         <div className="grid h-[calc(100%-40px)] grid-cols-7">
           {days.map((day) => {
+            const dayKey = format(day, "yyyy-MM-dd");
             const inMonth = day.getMonth() === selectedDate.getMonth();
             const isSunday = day.getDay() === 0;
             const dayEvents = eventsForDay(day).slice(0, 3);
@@ -83,7 +84,7 @@ export function CalendarMonthView() {
 
             return (
               <div
-                key={day.toISOString()}
+                key={dayKey}
                 className={cn(
                   "flex min-h-[110px] flex-col gap-1 border-b border-l py-1.5",
                   isSunday && "border-l-0",
@@ -107,11 +108,10 @@ export function CalendarMonthView() {
                 <div className={cn("flex flex-col gap-1", !inMonth && "opacity-50")}>
                   {dayEvents.map(event => (
                     <MultiDayEventBadge
-                      key={`${event.id}-${day.toISOString()}`}
+                      key={`${event.id}-${dayKey}`}
                       event={event}
                       position={event.position}
                       onClick={() => setSelectedEvent(event)}
-                      variant="month"
                       className="text-[0.7rem]"
                     />
                   ))}

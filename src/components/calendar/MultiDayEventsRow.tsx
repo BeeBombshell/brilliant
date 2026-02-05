@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { parseISO, startOfWeek, endOfWeek, addDays, differenceInDays, isBefore, isAfter, startOfDay } from "date-fns";
+import { parseISO, startOfWeek, endOfWeek, addDays, differenceInDays, isBefore, isAfter } from "date-fns";
 import { MultiDayEventBadge } from "./MultiDayEventBadge";
 import { isMultiDayEvent, getMultiDayPosition } from "@/lib/eventLayoutUtils";
 import type { CalendarEvent } from "@/types/calendar";
@@ -23,10 +23,7 @@ export function MultiDayEventsRow({
 
   // Filter to multi-day events only
   const multiDayEvents = useMemo(() => {
-    const filtered = events.filter(isMultiDayEvent);
-    console.log("MultiDayEventsRow - All events:", events.length);
-    console.log("MultiDayEventsRow - Multi-day events:", filtered.length, filtered);
-    return filtered;
+    return events.filter(isMultiDayEvent);
   }, [events]);
 
   // Process events to calculate their week-relative positions
@@ -76,13 +73,7 @@ export function MultiDayEventsRow({
   }, [processedEvents]);
 
   const hasEventsInWeek = useMemo(() => {
-    console.log("Checking hasEventsInWeek:", {
-      weekStart: weekStart.toISOString(),
-      weekEnd: weekEnd.toISOString(),
-      multiDayEventsCount: multiDayEvents.length,
-    });
-
-    const result = multiDayEvents.some((event) => {
+    return multiDayEvents.some((event) => {
       const start = parseISO(event.startDate);
       const end = parseISO(event.endDate);
 
@@ -92,51 +83,32 @@ export function MultiDayEventsRow({
         (start <= weekStart && end >= weekEnd)
       );
 
-      console.log(`Event "${event.title}":`, {
-        start: start.toISOString(),
-        end: end.toISOString(),
-        inWeek,
-      });
-
       return inWeek;
     });
-
-    console.log("hasEventsInWeek result:", result);
-    return result;
   }, [multiDayEvents, weekStart, weekEnd]);
 
   if (!hasEventsInWeek) {
-    console.log("No events in week, returning null");
     return null;
   }
 
   const visibleRows = showAll ? eventRows : eventRows.slice(0, 3);
   const hiddenCount = eventRows.length - visibleRows.length;
 
-  console.log("Rendering MultiDayEventsRow:", {
-    processedEventsCount: processedEvents.length,
-    eventRowsCount: eventRows.length,
-    visibleRowsCount: visibleRows.length,
-    eventRows,
-  });
-
   return (
     <div className="flex min-h-fit bg-background">
       <div className="w-18 border-b bg-background" />
       <div className="grid flex-1 grid-cols-7 divide-x border-b border-l bg-background">
         {weekDays.map((day, dayIndex) => {
-          console.log(`Day ${dayIndex}:`, day.toISOString());
           return (
           <div key={day.toISOString()} className="flex flex-col gap-1 py-1 min-h-[100px] bg-background">
             {visibleRows.map((row, rowIndex) => {
               const event = row.find((e) => e.startIndex <= dayIndex && e.endIndex >= dayIndex);
-              console.log(`  Row ${rowIndex}, Day ${dayIndex}:`, event ? event.title : "no event");
 
               if (!event) {
                 return <div key={`${rowIndex}-${dayIndex}`} className="h-6.5" />;
               }
 
-              const position = getMultiDayPosition(event, startOfDay(day));
+              const position = getMultiDayPosition(event, day);
 
               return (
                 <MultiDayEventBadge

@@ -63,20 +63,17 @@ export function NewEventDialog() {
   const handleClose = () => setDraft(null);
 
   const handleMakeMultiDay = (days: number) => {
-    console.log("handleMakeMultiDay called with days:", days);
     if (!startInput) {
-      console.log("No startInput");
       return;
     }
     const start = fromLocalInputValue(startInput);
     if (!start) {
-      console.log("Failed to parse start date");
       return;
     }
 
-    const newEnd = addDays(start, days);
+    const existingEnd = fromLocalInputValue(endInput);
+    const newEnd = addDays(existingEnd ?? start, days);
     const newEndInput = toLocalInputValue(formatISO(newEnd));
-    console.log("Setting end date to:", newEndInput);
     setEndInput(newEndInput);
   };
 
@@ -93,8 +90,6 @@ export function NewEventDialog() {
   };
 
   const handleCreate = () => {
-    console.log("handleCreate called", { title, startInput, endInput });
-
     if (!title.trim()) {
       setTitleError("Event title is required");
       return;
@@ -120,8 +115,6 @@ export function NewEventDialog() {
       color,
       meta: { source: "user" as const },
     };
-
-    console.log("Creating event:", newEvent);
 
     addEvent(newEvent);
 

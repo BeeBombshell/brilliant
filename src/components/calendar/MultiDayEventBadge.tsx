@@ -6,7 +6,6 @@ interface MultiDayEventBadgeProps {
   event: CalendarEvent;
   position: MultiDayPosition;
   onClick?: () => void;
-  variant?: "week" | "month";
   className?: string;
 }
 

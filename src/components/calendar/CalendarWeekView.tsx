@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { addDays, format, parseISO, isToday } from "date-fns";
 import { useAtom } from "jotai";
 
@@ -15,10 +15,21 @@ const minutesInDay = 24 * 60;
 const HOUR_HEIGHT = 96; // 96px per hour (Big Calendar standard)
 const DRAG_THRESHOLD = 5; // pixels - minimum movement to be considered a drag
 
+type DragColumnCache = {
+  columns: {
+    dayIndex: number;
+    left: number;
+    right: number;
+    timeGrid: HTMLElement | null;
+  }[];
+};
+
 export function CalendarWeekView() {
   const [selectedDate] = useAtom(selectedDateAtom);
   const [events] = useAtom(eventsAtom);
   const [, setDraft] = useAtom(newEventDraftAtom);
+  const dayColumnsRef = useRef<HTMLDivElement | null>(null);
+  const dragColumnCacheRef = useRef<DragColumnCache | null>(null);
   const [dragState, setDragState] = useState<{
     startDayIndex: number;
     currentDayIndex: number;
@@ -27,8 +38,6 @@ export function CalendarWeekView() {
     isDragging: boolean;
   } | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
-
-  console.log("CalendarWeekView - Total events:", events.length, events);
 
   const dayOfWeek = selectedDate.getDay();
   const weekStart = addDays(selectedDate, -dayOfWeek);
@@ -40,6 +49,25 @@ export function CalendarWeekView() {
     const container = event.currentTarget;
     const rect = container.getBoundingClientRect();
     const y = event.clientY - rect.top + container.scrollTop;
+
+    const dayColumnsContainer = dayColumnsRef.current;
+    if (dayColumnsContainer) {
+      dragColumnCacheRef.current = {
+        columns: Array.from(dayColumnsContainer.querySelectorAll<HTMLElement>("[data-day-index]")).map((element) => {
+          const columnRect = element.getBoundingClientRect();
+          const columnDayIndex = Number(element.dataset.dayIndex);
+          const timeGrid = element.querySelector<HTMLElement>("[data-time-grid]");
+
+          return {
+            dayIndex: columnDayIndex,
+            left: columnRect.left,
+            right: columnRect.right,
+            timeGrid,
+          };
+        }),
+      };
+    }
+
     setDragState({
       startDayIndex: dayIndex,
       currentDayIndex: dayIndex,
@@ -54,28 +82,27 @@ export function CalendarWeekView() {
   const handleGlobalPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!dragState) return;
 
-    // Find which day column the pointer is over
-    const dayElements = event.currentTarget.querySelectorAll('[data-day-index]');
-    let currentDayIndex = dragState.currentDayIndex;
+    const columnCache = dragColumnCacheRef.current;
+    if (!columnCache) return;
 
-    dayElements.forEach((element, idx) => {
-      const rect = element.getBoundingClientRect();
-      if (event.clientX >= rect.left && event.clientX <= rect.right) {
-        currentDayIndex = idx;
+    // Find which day column the pointer is over
+    let currentDayIndex = dragState.currentDayIndex;
+    for (const column of columnCache.columns) {
+      if (event.clientX >= column.left && event.clientX <= column.right) {
+        currentDayIndex = column.dayIndex;
+        break;
       }
-    });
+    }
 
     // Get the Y position relative to the current day column
-    const currentDayElement = dayElements[currentDayIndex] as HTMLElement | undefined;
-    if (currentDayElement) {
-      const timeGrid = currentDayElement.querySelector('[data-time-grid]') as HTMLElement;
-      if (timeGrid) {
-        const rect = timeGrid.getBoundingClientRect();
-        const y = event.clientY - rect.top + timeGrid.scrollTop;
-        setDragState(current =>
-          current ? { ...current, currentDayIndex, currentY: y } : current
-        );
-      }
+    const currentColumn = columnCache.columns.find((column) => column.dayIndex === currentDayIndex);
+    const timeGrid = currentColumn?.timeGrid;
+    if (timeGrid) {
+      const rect = timeGrid.getBoundingClientRect();
+      const y = event.clientY - rect.top + timeGrid.scrollTop;
+      setDragState(current =>
+        current ? { ...current, currentDayIndex, currentY: y } : current
+      );
     }
   };
 
@@ -100,6 +127,7 @@ export function CalendarWeekView() {
         const container = event.currentTarget;
         if (!dragState) {
           container.releasePointerCapture(event.pointerId);
+          dragColumnCacheRef.current = null;
           setDragState(null);
           return;
         }
@@ -160,14 +188,6 @@ export function CalendarWeekView() {
             endDate = new Date(startDayTime.getTime() + snappedEnd * 60000);
           }
 
-          console.log("Creating event:", {
-            isMultiDay,
-            startDayIdx,
-            endDayIdx,
-            startDate: startDate.toISOString(),
-            endDate: endDate.toISOString(),
-          });
-
           setDraft({
             startDate: startDate.toISOString(),
             endDate: endDate.toISOString(),
@@ -175,6 +195,7 @@ export function CalendarWeekView() {
         }
 
         container.releasePointerCapture(event.pointerId);
+        dragColumnCacheRef.current = null;
         setDragState(null);
       };
 
@@ -233,6 +254,7 @@ export function CalendarWeekView() {
           <div
             className="flex flex-1"
             onPointerMove={handleGlobalPointerMove}
+            ref={dayColumnsRef}
           >
             {days.map((day, index) => {
               // Filter to single-day events only (multi-day events are in the row above)

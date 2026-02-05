@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { parseISO, startOfWeek, endOfWeek, addDays, differenceInDays, isBefore, isAfter } from "date-fns";
+import { parseISO, startOfWeek, endOfWeek, addDays, differenceInDays, isBefore, isAfter, startOfDay } from "date-fns";
 import { MultiDayEventBadge } from "./MultiDayEventBadge";
 import { isMultiDayEvent, getMultiDayPosition } from "@/lib/eventLayoutUtils";
 import type { CalendarEvent } from "@/types/calendar";
@@ -108,7 +108,7 @@ export function MultiDayEventsRow({
                 return <div key={`${rowIndex}-${dayIndex}`} className="h-6.5" />;
               }
 
-              const position = getMultiDayPosition(event, day);
+              const position = getMultiDayPosition(event, startOfDay(day));
 
               return (
                 <MultiDayEventBadge

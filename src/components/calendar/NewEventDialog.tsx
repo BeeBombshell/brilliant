@@ -72,7 +72,8 @@ export function NewEventDialog() {
     }
 
     const existingEnd = fromLocalInputValue(endInput);
-    const newEnd = addDays(existingEnd ?? start, days);
+    const base = existingEnd && existingEnd > start ? existingEnd : start;
+    const newEnd = addDays(base, days);
     const newEndInput = toLocalInputValue(formatISO(newEnd));
     setEndInput(newEndInput);
   };

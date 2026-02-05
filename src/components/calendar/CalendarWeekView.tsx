@@ -44,29 +44,36 @@ export function CalendarWeekView() {
 
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
+  const rebuildDragColumnCache = (): DragColumnCache | null => {
+    const dayColumnsContainer = dayColumnsRef.current;
+    if (!dayColumnsContainer) return null;
+
+    const cache = {
+      columns: Array.from(dayColumnsContainer.querySelectorAll<HTMLElement>("[data-day-index]")).map((element) => {
+        const columnRect = element.getBoundingClientRect();
+        const columnDayIndex = Number(element.dataset.dayIndex);
+        const timeGrid = element.querySelector<HTMLElement>("[data-time-grid]");
+
+        return {
+          dayIndex: columnDayIndex,
+          left: columnRect.left,
+          right: columnRect.right,
+          timeGrid,
+        };
+      }),
+    } satisfies DragColumnCache;
+
+    dragColumnCacheRef.current = cache;
+    return cache;
+  };
+
   const handlePointerDown = (dayIndex: number) =>
   ((event: React.PointerEvent<HTMLDivElement>) => {
     const container = event.currentTarget;
     const rect = container.getBoundingClientRect();
     const y = event.clientY - rect.top + container.scrollTop;
 
-    const dayColumnsContainer = dayColumnsRef.current;
-    if (dayColumnsContainer) {
-      dragColumnCacheRef.current = {
-        columns: Array.from(dayColumnsContainer.querySelectorAll<HTMLElement>("[data-day-index]")).map((element) => {
-          const columnRect = element.getBoundingClientRect();
-          const columnDayIndex = Number(element.dataset.dayIndex);
-          const timeGrid = element.querySelector<HTMLElement>("[data-time-grid]");
-
-          return {
-            dayIndex: columnDayIndex,
-            left: columnRect.left,
-            right: columnRect.right,
-            timeGrid,
-          };
-        }),
-      };
-    }
+    rebuildDragColumnCache();
 
     setDragState({
       startDayIndex: dayIndex,
@@ -82,17 +89,32 @@ export function CalendarWeekView() {
   const handleGlobalPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!dragState) return;
 
-    const columnCache = dragColumnCacheRef.current;
+    let columnCache = dragColumnCacheRef.current;
+    if (!columnCache) {
+      columnCache = rebuildDragColumnCache();
+    }
     if (!columnCache) return;
 
     // Find which day column the pointer is over
-    let currentDayIndex = dragState.currentDayIndex;
-    for (const column of columnCache.columns) {
-      if (event.clientX >= column.left && event.clientX <= column.right) {
-        currentDayIndex = column.dayIndex;
-        break;
+    const findDayIndexAtClientX = (cache: DragColumnCache): number | null => {
+      for (const column of cache.columns) {
+        if (event.clientX >= column.left && event.clientX <= column.right) {
+          return column.dayIndex;
+        }
+      }
+      return null;
+    };
+
+    let foundDayIndex = findDayIndexAtClientX(columnCache);
+    if (foundDayIndex === null) {
+      const refreshedCache = rebuildDragColumnCache();
+      if (refreshedCache) {
+        columnCache = refreshedCache;
+        foundDayIndex = findDayIndexAtClientX(columnCache);
       }
     }
+
+    const currentDayIndex = foundDayIndex ?? dragState.currentDayIndex;
 
     // Get the Y position relative to the current day column
     const currentColumn = columnCache.columns.find((column) => column.dayIndex === currentDayIndex);

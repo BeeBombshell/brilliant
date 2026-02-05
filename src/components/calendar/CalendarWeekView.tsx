@@ -121,83 +121,81 @@ export function CalendarWeekView() {
       );
     };
 
-  const handlePointerUp =
-    (_dayIndex: number, _day: Date) =>
-      (event: React.PointerEvent<HTMLDivElement>) => {
-        const container = event.currentTarget;
-        if (!dragState) {
-          container.releasePointerCapture(event.pointerId);
-          dragColumnCacheRef.current = null;
-          setDragState(null);
-          return;
-        }
+  const handlePointerUp: React.PointerEventHandler<HTMLDivElement> = (event) => {
+    const container = event.currentTarget;
+    if (!dragState) {
+      container.releasePointerCapture(event.pointerId);
+      dragColumnCacheRef.current = null;
+      setDragState(null);
+      return;
+    }
 
-        // Only create an event if we actually dragged (beyond threshold)
-        if (dragState.isDragging) {
-          const startDayIdx = Math.min(dragState.startDayIndex, dragState.currentDayIndex);
-          const endDayIdx = Math.max(dragState.startDayIndex, dragState.currentDayIndex);
-          const isMultiDay = startDayIdx !== endDayIdx;
+    // Only create an event if we actually dragged (beyond threshold)
+    if (dragState.isDragging) {
+      const startDayIdx = Math.min(dragState.startDayIndex, dragState.currentDayIndex);
+      const endDayIdx = Math.max(dragState.startDayIndex, dragState.currentDayIndex);
+      const isMultiDay = startDayIdx !== endDayIdx;
 
-          const startY = Math.min(dragState.startY, dragState.currentY);
-          const endY = Math.max(dragState.startY, dragState.currentY);
+      const startY = Math.min(dragState.startY, dragState.currentY);
+      const endY = Math.max(dragState.startY, dragState.currentY);
 
-          const totalHeight = container.scrollHeight;
-          const startMinutes = (startY / totalHeight) * minutesInDay;
-          const endMinutes = (endY / totalHeight) * minutesInDay;
+      const totalHeight = container.scrollHeight;
+      const startMinutes = (startY / totalHeight) * minutesInDay;
+      const endMinutes = (endY / totalHeight) * minutesInDay;
 
-          const snapTo = 30;
-          const snappedStart = Math.floor(startMinutes / snapTo) * snapTo;
-          const snappedEnd = Math.max(
-            snappedStart + snapTo,
-            Math.ceil(endMinutes / snapTo) * snapTo
-          );
+      const snapTo = 30;
+      const snappedStart = Math.floor(startMinutes / snapTo) * snapTo;
+      const snappedEnd = Math.max(
+        snappedStart + snapTo,
+        Math.ceil(endMinutes / snapTo) * snapTo
+      );
 
-          // Get the start and end days
-          const startDay = days[startDayIdx];
-          const endDay = days[endDayIdx];
+      // Get the start and end days
+      const startDay = days[startDayIdx];
+      const endDay = days[endDayIdx];
 
-          const startDayTime = new Date(
-            startDay.getFullYear(),
-            startDay.getMonth(),
-            startDay.getDate(),
-            0,
-            0,
-            0
-          );
+      const startDayTime = new Date(
+        startDay.getFullYear(),
+        startDay.getMonth(),
+        startDay.getDate(),
+        0,
+        0,
+        0
+      );
 
-          const endDayTime = new Date(
-            endDay.getFullYear(),
-            endDay.getMonth(),
-            endDay.getDate(),
-            0,
-            0,
-            0
-          );
+      const endDayTime = new Date(
+        endDay.getFullYear(),
+        endDay.getMonth(),
+        endDay.getDate(),
+        0,
+        0,
+        0
+      );
 
-          // For multi-day events, use the full time range from first day to last day
-          let startDate: Date;
-          let endDate: Date;
+      // For multi-day events, use the full time range from first day to last day
+      let startDate: Date;
+      let endDate: Date;
 
-          if (isMultiDay) {
-            // Multi-day: start time on first day, end time on last day
-            startDate = new Date(startDayTime.getTime() + snappedStart * 60000);
-            endDate = new Date(endDayTime.getTime() + snappedEnd * 60000);
-          } else {
-            // Single day: normal behavior
-            startDate = new Date(startDayTime.getTime() + snappedStart * 60000);
-            endDate = new Date(startDayTime.getTime() + snappedEnd * 60000);
-          }
+      if (isMultiDay) {
+        // Multi-day: start time on first day, end time on last day
+        startDate = new Date(startDayTime.getTime() + snappedStart * 60000);
+        endDate = new Date(endDayTime.getTime() + snappedEnd * 60000);
+      } else {
+        // Single day: normal behavior
+        startDate = new Date(startDayTime.getTime() + snappedStart * 60000);
+        endDate = new Date(startDayTime.getTime() + snappedEnd * 60000);
+      }
 
-          setDraft({
-            startDate: startDate.toISOString(),
-            endDate: endDate.toISOString(),
-          });
-        }
+      setDraft({
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+      });
+    }
 
-        container.releasePointerCapture(event.pointerId);
-        dragColumnCacheRef.current = null;
-        setDragState(null);
-      };
+    container.releasePointerCapture(event.pointerId);
+    dragColumnCacheRef.current = null;
+    setDragState(null);
+  };
 
   return (
     <>
@@ -325,7 +323,7 @@ export function CalendarWeekView() {
                     data-time-grid
                     onPointerDown={handlePointerDown(index)}
                     onPointerMove={handlePointerMove(index)}
-                    onPointerUp={handlePointerUp(index, day)}
+                    onPointerUp={handlePointerUp}
                   >
                     {HOURS.map((hour, hourIndex) => (
                       <div

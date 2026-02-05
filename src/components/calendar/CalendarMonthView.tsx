@@ -1,25 +1,16 @@
-import { useState } from "react";
-import { startOfMonth, addDays, parseISO, isSameDay, format, isToday, startOfWeek } from "date-fns";
+import { useState, useMemo } from "react";
+import { startOfMonth, addDays, parseISO, format, isToday, startOfWeek, startOfDay, endOfDay } from "date-fns";
 import { useAtom } from "jotai";
 
 import { selectedDateAtom, eventsAtom } from "@/state/calendarAtoms";
 import { EventDetailsDialog } from "@/components/calendar/EventDetailsDialog";
-import type { EventColor, CalendarEvent } from "@/types/calendar";
+import { MultiDayEventBadge } from "@/components/calendar/MultiDayEventBadge";
+import { calculateMonthEventSlots, getMultiDayPosition } from "@/lib/eventLayoutUtils";
+import type { CalendarEvent } from "@/types/calendar";
 import { cn } from "@/lib/utils";
 import { useCalendarActions } from "@/hooks/useCalendarActions";
 
 const WEEK_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-// Dot color classes for the colored indicator
-const dotColorClasses: Record<EventColor, string> = {
-  blue: "fill-sky-600",
-  green: "fill-emerald-600",
-  red: "fill-rose-600",
-  yellow: "fill-amber-600",
-  purple: "fill-violet-600",
-  orange: "fill-orange-600",
-  gray: "fill-slate-600",
-};
 
 export function CalendarMonthView() {
   const [selectedDate] = useAtom(selectedDateAtom);
@@ -34,10 +25,28 @@ export function CalendarMonthView() {
   // Generate 6 weeks (42 days) for consistent grid
   const days = Array.from({ length: 42 }, (_, i) => addDays(calendarStart, i));
 
-  const eventsForDay = (day: Date) =>
-    events.filter(event =>
-      isSameDay(parseISO(event.startDate), day)
-    );
+  // Calculate event slot positions for the month
+  const eventPositions = useMemo(() => calculateMonthEventSlots(events, selectedDate), [events, selectedDate]);
+
+  const eventsForDay = (day: Date) => {
+    const dayStartTime = startOfDay(day);
+    const dayEndTime = endOfDay(day);
+
+    return events
+      .filter(event => {
+        const start = parseISO(event.startDate);
+        const end = parseISO(event.endDate);
+        // Event overlaps with this day
+        return start <= dayEndTime && end >= dayStartTime;
+      })
+      .map(event => ({
+        ...event,
+        position: getMultiDayPosition(event, day),
+        slot: eventPositions[event.id] ?? -1,
+      }))
+      .filter(event => event.slot !== -1) // Only show events with assigned slots
+      .sort((a, b) => a.slot - b.slot);
+  };
 
   const handleDayClick = (day: Date) => {
     changeDate(day);
@@ -64,6 +73,7 @@ export function CalendarMonthView() {
         {/* Calendar grid */}
         <div className="grid h-[calc(100%-40px)] grid-cols-7">
           {days.map((day) => {
+            const dayKey = format(day, "yyyy-MM-dd");
             const inMonth = day.getMonth() === selectedDate.getMonth();
             const isSunday = day.getDay() === 0;
             const dayEvents = eventsForDay(day).slice(0, 3);
@@ -74,7 +84,7 @@ export function CalendarMonthView() {
 
             return (
               <div
-                key={day.toISOString()}
+                key={dayKey}
                 className={cn(
                   "flex min-h-[110px] flex-col gap-1 border-b border-l py-1.5",
                   isSunday && "border-l-0",
@@ -95,18 +105,15 @@ export function CalendarMonthView() {
                 </button>
 
                 {/* Events */}
-                <div className={cn("space-y-1 px-1", !inMonth && "opacity-50")}>
+                <div className={cn("flex flex-col gap-1", !inMonth && "opacity-50")}>
                   {dayEvents.map(event => (
-                    <button
-                      key={event.id}
+                    <MultiDayEventBadge
+                      key={`${event.id}-${dayKey}`}
+                      event={event}
+                      position={event.position}
                       onClick={() => setSelectedEvent(event)}
-                      className="flex w-full items-center gap-1.5 rounded-md border border-border bg-muted/50 px-2 py-0.5 text-left text-[0.7rem] font-semibold text-foreground transition-all hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    >
-                      <svg width="6" height="6" viewBox="0 0 6 6" className={`shrink-0 ${dotColorClasses[event.color]}`}>
-                        <circle cx="3" cy="3" r="3" />
-                      </svg>
-                      <span className="truncate">{event.title}</span>
-                    </button>
+                      className="text-[0.7rem]"
+                    />
                   ))}
                   {extraCount > 0 && (
                     <button

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { parseISO, formatISO } from "date-fns";
+import { parseISO, formatISO, addDays, startOfDay, endOfDay } from "date-fns";
 import { useAtom } from "jotai";
 
 import {
@@ -62,6 +62,34 @@ export function NewEventDialog() {
 
   const handleClose = () => setDraft(null);
 
+  const handleMakeMultiDay = (days: number) => {
+    if (!startInput) {
+      return;
+    }
+    const start = fromLocalInputValue(startInput);
+    if (!start) {
+      return;
+    }
+
+    const existingEnd = fromLocalInputValue(endInput);
+    const base = existingEnd && existingEnd > start ? existingEnd : start;
+    const newEnd = addDays(base, days);
+    const newEndInput = toLocalInputValue(formatISO(newEnd));
+    setEndInput(newEndInput);
+  };
+
+  const handleMakeAllDay = () => {
+    if (!startInput) return;
+    const start = fromLocalInputValue(startInput);
+    if (!start) return;
+
+    const dayStart = startOfDay(start);
+    const dayEnd = endOfDay(start);
+
+    setStartInput(toLocalInputValue(formatISO(dayStart)));
+    setEndInput(toLocalInputValue(formatISO(dayEnd)));
+  };
+
   const handleCreate = () => {
     if (!title.trim()) {
       setTitleError("Event title is required");
@@ -80,14 +108,16 @@ export function NewEventDialog() {
       end = new Date(start.getTime() + 30 * 60000);
     }
 
-    addEvent({
+    const newEvent = {
       title: title.trim(),
       description: description.trim() || undefined,
       startDate: formatISO(start),
       endDate: formatISO(end),
       color,
-      meta: { source: "user" },
-    });
+      meta: { source: "user" as const },
+    };
+
+    addEvent(newEvent);
 
     setDraft(null);
   };
@@ -138,36 +168,64 @@ export function NewEventDialog() {
               className="resize-none"
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2.5">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
               <label className="text-sm font-medium flex items-center gap-2">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <circle cx="12" cy="12" r="10" />
                   <polyline points="12 6 12 12 16 14" />
                 </svg>
-                Start
+                Date & Time
               </label>
-              <Input
-                type="datetime-local"
-                value={startInput}
-                onChange={event => setStartInput(event.target.value)}
-                className="text-sm"
-              />
+              <div className="flex gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleMakeAllDay}
+                  className="h-7 text-xs"
+                >
+                  All-day
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleMakeMultiDay(1)}
+                  className="h-7 text-xs"
+                >
+                  +1 day
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleMakeMultiDay(2)}
+                  className="h-7 text-xs"
+                >
+                  +2 days
+                </Button>
+              </div>
             </div>
-            <div className="space-y-2.5">
-              <label className="text-sm font-medium flex items-center gap-2">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10" />
-                  <polyline points="12 6 12 12 16 14" />
-                </svg>
-                End
-              </label>
-              <Input
-                type="datetime-local"
-                value={endInput}
-                onChange={event => setEndInput(event.target.value)}
-                className="text-sm"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground">Start</label>
+                <Input
+                  type="datetime-local"
+                  value={startInput}
+                  onChange={event => setStartInput(event.target.value)}
+                  className="text-sm"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground">End</label>
+                <Input
+                  type="datetime-local"
+                  value={endInput}
+                  onChange={event => setEndInput(event.target.value)}
+                  className="text-sm"
+                />
+              </div>
             </div>
           </div>
           <div className="space-y-2.5">

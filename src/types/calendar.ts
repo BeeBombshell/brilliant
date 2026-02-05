@@ -79,3 +79,31 @@ export type CalendarEventType =
   | "view.changed"
   | "date.changed";
 
+export type MultiDayPosition = "first" | "middle" | "last" | "none";
+
+export interface EventGroup {
+  events: CalendarEvent[];
+  columns: EventColumn[];
+}
+
+export interface EventColumn {
+  event: CalendarEvent;
+  left: number;    // percentage
+  width: number;   // percentage
+  zIndex: number;
+}
+
+export interface EventSlot {
+  event: CalendarEvent;
+  slot: number;     // 0, 1, or 2 for month view
+  position: MultiDayPosition;
+}
+
+export interface BlockStyle {
+  top: string;
+  left: string;
+  width: string;
+  height: string;
+  zIndex: number;
+}
+

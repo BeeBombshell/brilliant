@@ -6,7 +6,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { actionLogAtom, selectedDateAtom, newEventDraftAtom } from "@/state/calendarAtoms";
-// import { useCalendarActions } from "@/hooks/useCalendarActions";
+
+import { useTamboThread, useTamboThreadInput } from "@tambo-ai/react";
 
 interface ChatMessage {
   id: string;
@@ -14,27 +15,73 @@ interface ChatMessage {
   content: string;
 }
 
-const mockMessages: ChatMessage[] = [
-  {
-    id: "1",
-    role: "assistant",
-    content: "Tell me what you want to get done this week and I’ll build a schedule.",
-  },
-  {
-    id: "2",
-    role: "user",
-    content: "I want 3 deep work blocks and time for emails & meetings.",
-  },
-];
-
 export function ChatPane() {
   const { user, logout } = useGoogleAuth();
   const [actionLog] = useAtom(actionLogAtom);
   const [, setSelectedDate] = useAtom(selectedDateAtom);
   const [, setDraft] = useAtom(newEventDraftAtom);
-  // const { addEvent } = useCalendarActions();
 
-  const orderedMessages = useMemo(() => mockMessages, []);
+  // Tambo AI hooks
+  const { thread } = useTamboThread();
+  const { value, setValue, submit, isPending } = useTamboThreadInput();
+
+  // Combine mock messages with real Tambo thread messages
+  const orderedMessages = useMemo<ChatMessage[]>(() => {
+    const mockMessages: ChatMessage[] = [
+      {
+        id: "1",
+        role: "assistant",
+        content: "Tell me what you want to get done this week and I'll build a schedule.",
+      },
+    ];
+
+    // Add messages from Tambo thread if available
+    const tamboMessages: ChatMessage[] = thread?.messages?.map(msg => {
+      let contentString = "";
+      if (typeof msg.content === "string") {
+        contentString = msg.content;
+      } else if (Array.isArray(msg.content)) {
+        contentString = msg.content
+          .map(part => ("text" in part && typeof (part as any).text === "string" ? (part as any).text : ""))
+          .join("");
+      }
+
+      return {
+        id: msg.id,
+        role: msg.role as "user" | "assistant",
+        content: contentString || "",
+      };
+    }) || [];
+
+    return [...mockMessages, ...tamboMessages];
+  }, [thread?.messages]);
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!value.trim()) return;
+
+    // Submit to Tambo AI with streaming
+    await submit({ streamResponse: true });
+
+    // Keep existing calendar draft logic
+    const now = new Date();
+    setSelectedDate(now);
+    const start = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      now.getHours(),
+      0,
+      0,
+      0
+    );
+    const end = new Date(start.getTime() + 60 * 60 * 1000);
+    setDraft({
+      startDate: start.toISOString(),
+      endDate: end.toISOString(),
+    });
+  };
 
   return (
     <Card className="flex h-full flex-col border-l-0 border-t-0 rounded-none bg-card/80 shadow-none">
@@ -69,6 +116,7 @@ export function ChatPane() {
           </button>
         </div>
       </div>
+
       <div className="flex flex-1 flex-col gap-3 p-3">
         <div className="flex-1 overflow-hidden rounded-md border bg-background/80">
           <div className="flex h-full flex-col gap-3 overflow-y-auto p-3">
@@ -76,8 +124,7 @@ export function ChatPane() {
               {orderedMessages.map(msg => (
                 <div
                   key={msg.id}
-                  className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"
-                    }`}
+                  className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                 >
                   <div
                     className={`max-w-[80%] rounded-lg px-3 py-2 ${msg.role === "user"
@@ -89,6 +136,22 @@ export function ChatPane() {
                   </div>
                 </div>
               ))}
+
+              {/* Show loading indicator when AI is thinking */}
+              {isPending && (
+                <div className="flex justify-start">
+                  <div className="max-w-[80%] rounded-lg px-3 py-2 bg-muted">
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-1">
+                        <span className="size-1.5 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <span className="size-1.5 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <span className="size-1.5 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: '300ms' }} />
+                      </div>
+                      <span className="text-xs text-muted-foreground">AI is thinking...</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -111,36 +174,18 @@ export function ChatPane() {
           </div>
         </Card>
 
-        <form
-          className="space-y-2"
-          onSubmit={event => {
-            event.preventDefault();
-            const now = new Date();
-            setSelectedDate(now);
-            const start = new Date(
-              now.getFullYear(),
-              now.getMonth(),
-              now.getDate(),
-              now.getHours(),
-              0,
-              0,
-              0
-            );
-            const end = new Date(start.getTime() + 60 * 60 * 1000);
-            setDraft({
-              startDate: start.toISOString(),
-              endDate: end.toISOString(),
-            });
-          }}
-        >
+        <form className="space-y-2" onSubmit={handleSubmit}>
           <Textarea
             rows={3}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
             placeholder="Describe your goals, constraints, or preferences..."
             className="resize-none"
+            disabled={isPending}
           />
           <div className="flex justify-end">
-            <Button type="submit" size="sm">
-              Ask AI to schedule
+            <Button type="submit" size="sm" disabled={isPending || !value.trim()}>
+              {isPending ? "Scheduling..." : "Ask AI to schedule"}
             </Button>
           </div>
         </form>
@@ -148,4 +193,3 @@ export function ChatPane() {
     </Card>
   );
 }
-

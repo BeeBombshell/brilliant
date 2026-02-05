@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef, useEffect } from "react";
 import { useAtom } from "jotai";
 import { useGoogleAuth } from "@/contexts/GoogleAuthContext";
 
@@ -15,7 +15,11 @@ interface ChatMessage {
   content: string;
 }
 
-export function ChatPane() {
+interface ChatPaneProps {
+  onClose?: () => void;
+}
+
+export function ChatPane({ onClose }: ChatPaneProps) {
   const { user, logout } = useGoogleAuth();
   const [actionLog] = useAtom(actionLogAtom);
   const [, setSelectedDate] = useAtom(selectedDateAtom);
@@ -24,6 +28,8 @@ export function ChatPane() {
   // Tambo AI hooks
   const { thread } = useTamboThread();
   const { value, setValue, submit, isPending } = useTamboThreadInput();
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Combine mock messages with real Tambo thread messages
   const orderedMessages = useMemo<ChatMessage[]>(() => {
@@ -56,13 +62,23 @@ export function ChatPane() {
     return [...mockMessages, ...tamboMessages];
   }, [thread?.messages]);
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [orderedMessages, isPending]);
 
-    if (!value.trim()) return;
+  const handleSubmit = async (event?: React.FormEvent) => {
+    event?.preventDefault();
+    if (!value.trim() || isPending) return;
 
-    // Submit to Tambo AI with streaming
-    await submit({ streamResponse: true });
+    // Start submission
+    const submitPromise = submit({ streamResponse: true });
+
+    // Clear input immediately for better UX
+    setValue("");
+
+    // Wait for the submission to complete (including streaming)
+    await submitPromise;
 
     // Keep existing calendar draft logic
     const now = new Date();
@@ -85,8 +101,16 @@ export function ChatPane() {
 
   return (
     <Card className="flex h-full flex-col border-l-0 border-t-0 rounded-none bg-card/80 shadow-none">
-      <div className="border-b px-4 py-3 text-sm font-semibold">
-        Brilliant Planner
+      <div className="flex items-center justify-between border-b px-4 py-3">
+        <span className="text-sm font-semibold">Brilliant Planner</span>
+        {onClose && (
+          <Button variant="ghost" size="icon" className="md:hidden size-8" onClick={onClose}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </Button>
+        )}
       </div>
 
       {/* User Profile Section */}
@@ -120,19 +144,19 @@ export function ChatPane() {
       <div className="flex flex-1 flex-col gap-3 p-3">
         <div className="flex-1 overflow-hidden rounded-md border bg-background/80">
           <div className="flex h-full flex-col gap-3 overflow-y-auto p-3">
-            <div className="space-y-3 text-sm leading-relaxed">
-              {orderedMessages.map(msg => (
+            <div className="space-y-4 text-sm leading-relaxed">
+              {orderedMessages.map((msg, idx) => (
                 <div
-                  key={msg.id}
+                  key={msg.id || idx}
                   className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                 >
                   <div
-                    className={`max-w-[80%] rounded-lg px-3 py-2 ${msg.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted"
+                    className={`max-w-[85%] rounded-2xl px-4 py-2.5 shadow-sm transition-all hover:shadow-md ${msg.role === "user"
+                      ? "bg-primary text-primary-foreground rounded-tr-none"
+                      : "bg-muted text-foreground rounded-tl-none"
                       }`}
                   >
-                    {msg.content}
+                    <div className="whitespace-pre-wrap break-words">{msg.content}</div>
                   </div>
                 </div>
               ))}
@@ -140,18 +164,19 @@ export function ChatPane() {
               {/* Show loading indicator when AI is thinking */}
               {isPending && (
                 <div className="flex justify-start">
-                  <div className="max-w-[80%] rounded-lg px-3 py-2 bg-muted">
-                    <div className="flex items-center gap-2">
-                      <div className="flex gap-1">
-                        <span className="size-1.5 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: '0ms' }} />
-                        <span className="size-1.5 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: '150ms' }} />
-                        <span className="size-1.5 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: '300ms' }} />
+                  <div className="max-w-[85%] rounded-2xl px-4 py-2.5 bg-muted rounded-tl-none shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <div className="flex gap-1.5">
+                        <span className="size-1.5 rounded-full bg-primary/40 animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <span className="size-1.5 rounded-full bg-primary/40 animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <span className="size-1.5 rounded-full bg-primary/40 animate-bounce" style={{ animationDelay: '300ms' }} />
                       </div>
-                      <span className="text-xs text-muted-foreground">AI is thinking...</span>
+                      <span className="text-xs font-medium text-muted-foreground">Thinking...</span>
                     </div>
                   </div>
                 </div>
               )}
+              <div ref={messagesEndRef} />
             </div>
           </div>
         </div>
@@ -179,8 +204,14 @@ export function ChatPane() {
             rows={3}
             value={value}
             onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmit();
+              }
+            }}
             placeholder="Describe your goals, constraints, or preferences..."
-            className="resize-none"
+            className="resize-none focus-visible:ring-1"
             disabled={isPending}
           />
           <div className="flex justify-end">

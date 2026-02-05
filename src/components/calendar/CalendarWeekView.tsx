@@ -35,6 +35,7 @@ export function CalendarWeekView() {
     currentDayIndex: number;
     startY: number;
     currentY: number;
+    containerHeight: number;
     isDragging: boolean;
   } | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
@@ -80,6 +81,7 @@ export function CalendarWeekView() {
       currentDayIndex: dayIndex,
       startY: y,
       currentY: y,
+      containerHeight: container.scrollHeight,
       isDragging: false
     });
     container.setPointerCapture(event.pointerId);
@@ -150,7 +152,7 @@ export function CalendarWeekView() {
       const startY = Math.min(dragState.startY, dragState.currentY);
       const endY = Math.max(dragState.startY, dragState.currentY);
 
-      const totalHeight = container.scrollHeight;
+      const totalHeight = dragState.containerHeight;
       const startMinutes = (startY / totalHeight) * minutesInDay;
       const endMinutes = (endY / totalHeight) * minutesInDay;
 

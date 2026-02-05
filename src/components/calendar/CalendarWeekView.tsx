@@ -122,31 +122,20 @@ export function CalendarWeekView() {
     if (timeGrid) {
       const rect = timeGrid.getBoundingClientRect();
       const y = event.clientY - rect.top + timeGrid.scrollTop;
-      setDragState(current =>
-        current ? { ...current, currentDayIndex, currentY: y } : current
-      );
+      setDragState(current => {
+        if (!current) return current;
+        const isDragging = current.isDragging || Math.abs(y - current.startY) > DRAG_THRESHOLD;
+        return { ...current, currentDayIndex, currentY: y, isDragging };
+      });
     }
   };
 
-  const handlePointerMove =
-    (dayIndex: number) => (event: React.PointerEvent<HTMLDivElement>) => {
-      if (!dragState) return;
-      const container = event.currentTarget;
-      const rect = container.getBoundingClientRect();
-      const y = event.clientY - rect.top + container.scrollTop;
-
-      // Only set isDragging to true if we've moved beyond the threshold
-      const isDragging = dragState.isDragging || Math.abs(y - dragState.startY) > DRAG_THRESHOLD;
-
-      setDragState(current =>
-        current ? { ...current, currentDayIndex: dayIndex, currentY: y, isDragging } : current
-      );
-    };
-
   const handlePointerUp: React.PointerEventHandler<HTMLDivElement> = (event) => {
     const container = event.currentTarget;
-    if (!dragState) {
+    if (container.hasPointerCapture(event.pointerId)) {
       container.releasePointerCapture(event.pointerId);
+    }
+    if (!dragState) {
       dragColumnCacheRef.current = null;
       setDragState(null);
       return;
@@ -214,7 +203,6 @@ export function CalendarWeekView() {
       });
     }
 
-    container.releasePointerCapture(event.pointerId);
     dragColumnCacheRef.current = null;
     setDragState(null);
   };
@@ -344,7 +332,6 @@ export function CalendarWeekView() {
                     className="relative"
                     data-time-grid
                     onPointerDown={handlePointerDown(index)}
-                    onPointerMove={handlePointerMove(index)}
                     onPointerUp={handlePointerUp}
                   >
                     {HOURS.map((hour, hourIndex) => (

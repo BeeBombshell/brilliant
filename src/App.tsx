@@ -12,14 +12,16 @@ import Home from "./pages/Home";
 
 
 function ThreadManager() {
-  const [threadId] = useAtom(chatThreadIdAtom);
-  const { currentThreadId, switchCurrentThread } = useTamboThread();
+  const [threadId, setThreadId] = useAtom(chatThreadIdAtom);
+  const { currentThreadId } = useTamboThread();
 
+  // Sync Tambo's current thread ID to our atom (one-way sync)
+  // This ensures our UI state reflects Tambo's state
   useEffect(() => {
-    if (threadId && threadId !== currentThreadId) {
-      switchCurrentThread(threadId);
+    if (currentThreadId && currentThreadId !== threadId) {
+      setThreadId(currentThreadId);
     }
-  }, [threadId, currentThreadId, switchCurrentThread]);
+  }, [currentThreadId, threadId, setThreadId]);
 
   return null;
 }

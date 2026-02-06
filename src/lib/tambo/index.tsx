@@ -1,32 +1,16 @@
-import { 
-    ScheduleBlock, 
-    EventCard, 
-    WeekSchedule 
+import {
+    GenerativeForm,
 } from './components';
-import { 
-    ScheduleBlockSchema, 
-    EventCardSchema, 
-    WeekScheduleSchema 
+import {
+    GenerativeFormSchema,
 } from './schemas';
 
 // Define your calendar-related components that Tambo can render
 export const tamboComponents = [
     {
-        name: 'ScheduleBlock',
-        description: 'Display a time block for focused work or activities',
-        component: ScheduleBlock,
-        propsSchema: ScheduleBlockSchema,
+        name: 'GenerativeForm',
+        description: 'A dynamic, schema-driven questionnaire / form. Use this when the user asks to create a form, survey, questionnaire, quiz, feedback form, registration form, intake form, application, or any structured data-collection UI. The AI should populate the fields array with the appropriate field types (text, email, number, textarea, select, radio, checkbox, switch, date, time, range, etc.) based on what information needs to be collected. Supports sections, validation, and flexible grid layouts.',
+        component: GenerativeForm,
+        propsSchema: GenerativeFormSchema,
     },
-    {
-        name: 'EventCard',
-        description: 'Display a calendar event with details',
-        component: EventCard,
-        propsSchema: EventCardSchema,
-    },
-    {
-        name: 'WeekSchedule',
-        description: 'Display a full week schedule with multiple time blocks',
-        component: WeekSchedule,
-        propsSchema: WeekScheduleSchema,
-    }
 ];

@@ -281,7 +281,7 @@ export function CalendarWeekView() {
               const isDayInDragRange = dragState && dragState.isDragging && index >= minDayIdx && index <= maxDayIdx;
 
               // Calculate overlay based on position in drag range
-              let dragOverlay = null;
+              let dragOverlay: { top: number; height: number } | null = null;
               if (isDayInDragRange && dragState) {
                 const isFirstDay = index === minDayIdx;
                 const isLastDay = index === maxDayIdx;

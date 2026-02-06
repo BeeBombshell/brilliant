@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+// Re-export form schemas from the generative form component
+export { FormFieldSchema, GenerativeFormSchema } from '@/components/generative/GenerativeForm';
+
 // Define the type for the time block types to ensure consistency
 export const TimeBlockTypeEnum = z.enum(['deep-work', 'meeting', 'email', 'break']);
 export type TimeBlockType = z.infer<typeof TimeBlockTypeEnum>;
@@ -17,30 +20,30 @@ export const RecurrenceRuleSchema = z.object({
 // --- Component Props Schemas ---
 
 export const ScheduleBlockSchema = z.object({
-    title: z.string().describe('Name of the activity or task'),
-    startTime: z.string().describe('Start time in ISO format'),
-    endTime: z.string().describe('End time in ISO format'),
-    type: TimeBlockTypeEnum.describe('Type of time block'),
-    description: z.string().optional().describe('Additional details about the block'),
+    title: z.string().nullish().describe('Name of the activity or task'),
+    startTime: z.string().nullish().describe('Start time in ISO format'),
+    endTime: z.string().nullish().describe('End time in ISO format'),
+    type: z.string().nullish().describe('Type of time block: deep-work, meeting, email, or break'),
+    description: z.string().nullish().describe('Additional details about the block'),
 });
 
 export const EventCardSchema = z.object({
-    title: z.string().describe('Event title'),
-    startDate: z.string().describe('Start date/time in ISO format'),
-    endDate: z.string().describe('End date/time in ISO format'),
-    location: z.string().optional().describe('Event location'),
-    attendees: z.array(z.string()).optional().describe('List of attendees'),
+    title: z.string().nullish().describe('Event title'),
+    startDate: z.string().nullish().describe('Start date/time in ISO format'),
+    endDate: z.string().nullish().describe('End date/time in ISO format'),
+    location: z.string().nullish().describe('Event location'),
+    attendees: z.array(z.string()).nullish().describe('List of attendees'),
 });
 
 export const WeekScheduleSchema = z.object({
-    weekStart: z.string().describe('Start of the week in ISO format'),
+    weekStart: z.string().nullish().describe('Start of the week in ISO format'),
     blocks: z.array(z.object({
-        day: z.string(),
-        title: z.string(),
-        startTime: z.string(),
-        endTime: z.string(),
-        type: TimeBlockTypeEnum,
-    })).describe('Array of time blocks for the week'),
+        day: z.string().nullish(),
+        title: z.string().nullish(),
+        startTime: z.string().nullish(),
+        endTime: z.string().nullish(),
+        type: z.string().nullish(),
+    })).nullish().describe('Array of time blocks for the week'),
 });
 
 // --- Tool Input Schemas ---

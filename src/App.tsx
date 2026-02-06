@@ -45,6 +45,13 @@ export function App() {
         apiKey={import.meta.env.VITE_TAMBO_API_KEY}
         components={tamboComponents}
         tools={tamboTools}
+        contextHelpers={{
+          userTimeContext: () => ({
+            nowIso: new Date().toISOString(),
+            nowLocal: new Date().toLocaleString(),
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          }),
+        }}
       >
         <AppContent />
       </TamboProvider>

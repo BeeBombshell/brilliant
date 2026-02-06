@@ -77,7 +77,7 @@ export function CalendarShell({ children }: { children: React.ReactNode }) {
 
   return (
     <Card className="flex h-full flex-col border-none shadow-none">
-      <div className="flex items-center justify-between gap-4 border-b px-6 py-3">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b px-4 sm:px-6 py-3">
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-3">
             <CalendarDateIcon date={new Date()} onClick={goToday} />
@@ -135,6 +135,7 @@ export function CalendarShell({ children }: { children: React.ReactNode }) {
             size="sm"
             onClick={redo}
             disabled={redoStack.length === 0}
+            className="hidden sm:inline-flex"
           >
             Redo
           </Button>

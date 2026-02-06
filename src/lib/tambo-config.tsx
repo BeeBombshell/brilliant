@@ -1,4 +1,9 @@
 import { z } from 'zod';
+import { getDefaultStore } from 'jotai';
+import { v4 as uuid } from 'uuid';
+import { eventsAtom, actionHistoryAtom } from '@/state/calendarAtoms';
+import { eventBus } from '@/lib/eventBus';
+import type { CalendarEvent, CalendarAction, EventColor } from '@/types/calendar';
 
 // Define the type for the time block types to ensure consistency
 const TimeBlockTypeEnum = z.enum(['deep-work', 'meeting', 'email', 'break']);
@@ -49,6 +54,37 @@ const GetEventsSchema = z.object({
     endDate: z.string().describe('End date in ISO format'),
 });
 
+const UpdateEventSchema = z.object({
+    id: z.string().describe('ID of the event to update'),
+    title: z.string().optional().describe('New event title'),
+    startDate: z.string().optional().describe('New start date/time in ISO format'),
+    endDate: z.string().optional().describe('New end date/time in ISO format'),
+    description: z.string().optional().describe('New event description'),
+    color: z.enum(['blue', 'green', 'red', 'yellow', 'purple', 'orange', 'gray']).optional().describe('Event color'),
+});
+
+const DeleteEventSchema = z.object({
+    id: z.string().describe('ID of the event to delete'),
+});
+
+const ReorganizeEventsSchema = z.object({
+    actions: z.array(z.discriminatedUnion('type', [
+        z.object({
+            type: z.literal('create'),
+            event: CreateEventSchema
+        }),
+        z.object({
+            type: z.literal('update'),
+            patch: UpdateEventSchema
+        }),
+        z.object({
+            type: z.literal('delete'),
+            id: z.string()
+        }),
+    ])).describe('Array of actions to apply to the calendar'),
+    explanation: z.string().optional().describe('Brief explanation of the reorganization logic'),
+});
+
 const SuggestBlocksSchema = z.object({
     goals: z.string().describe('User\'s goals or preferences'),
     numberOfBlocks: z.number().optional().describe('Number of time blocks to suggest'),
@@ -60,13 +96,29 @@ const SuggestBlocksSchema = z.object({
 const CreateEventOutputSchema = z.object({
     success: z.boolean(),
     message: z.string(),
-    eventId: z.string(),
+    eventId: z.string().optional(),
 });
 
 const GetEventsOutputSchema = z.object({
     success: z.boolean(),
     events: z.array(z.any()),
     message: z.string(),
+});
+
+const UpdateEventOutputSchema = z.object({
+    success: z.boolean(),
+    message: z.string(),
+});
+
+const DeleteEventOutputSchema = z.object({
+    success: z.boolean(),
+    message: z.string(),
+});
+
+const ReorganizeOutputSchema = z.object({
+    success: z.boolean(),
+    message: z.string(),
+    actionCount: z.number(),
 });
 
 const SuggestBlocksOutputSchema = z.object({
@@ -104,16 +156,37 @@ export const tamboTools = [
     {
         name: 'createCalendarEvent',
         title: 'Create Calendar Event',
-        description: 'Create a new event in the user\'s Google Calendar',
+        description: 'Create a new event in the user\'s calendar',
         inputSchema: CreateEventSchema,
         outputSchema: CreateEventOutputSchema,
-        tool: async ({ summary, startDateTime, endDateTime, description, location, attendees }: z.infer<typeof CreateEventSchema>) => {
-            console.log('Creating event:', { summary, startDateTime, endDateTime, description, location, attendees });
+        tool: async ({ summary, startDateTime, endDateTime, description }: z.infer<typeof CreateEventSchema>) => {
+            const store = getDefaultStore();
+            const event: CalendarEvent = {
+                id: uuid(),
+                title: summary,
+                startDate: startDateTime,
+                endDate: endDateTime,
+                description,
+                color: 'blue',
+                meta: { source: 'ai' }
+            };
+
+            const action: CalendarAction = {
+                id: uuid(),
+                type: 'ADD_EVENT',
+                timestamp: new Date().toISOString(),
+                source: 'ai',
+                payload: { event },
+            };
+
+            store.set(eventsAtom, (prev) => [...prev, event]);
+            store.set(actionHistoryAtom, (prev) => [...prev, action]);
+            eventBus.emit({ type: 'event.created', action });
 
             return {
                 success: true,
-                message: `Created event "${summary}" from ${new Date(startDateTime).toLocaleString()} to ${new Date(endDateTime).toLocaleString()}${location ? ` at ${location}` : ''}`,
-                eventId: Math.random().toString(36).substring(7),
+                message: `Created event "${summary}"`,
+                eventId: event.id,
             };
         }
     },
@@ -124,12 +197,196 @@ export const tamboTools = [
         inputSchema: GetEventsSchema,
         outputSchema: GetEventsOutputSchema,
         tool: async ({ startDate, endDate }: z.infer<typeof GetEventsSchema>) => {
-            console.log('Fetching events from', startDate, 'to', endDate);
+            const store = getDefaultStore();
+            const allEvents = store.get(eventsAtom);
+
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+
+            console.log('Searching for events between', start.toISOString(), 'and', end.toISOString());
+            console.log('Total events in store:', allEvents.length);
+
+            const filtered = allEvents.filter(e => {
+                const eStart = new Date(e.startDate);
+                const eEnd = new Date(e.endDate);
+
+                // Overlap condition: (StartA < EndB) && (EndA > StartB)
+                return (eStart < end) && (eEnd > start);
+            });
+
+            const eventList = filtered
+                .map(e => `${e.title} [${new Date(e.startDate).getHours()}:${String(new Date(e.startDate).getMinutes()).padStart(2, '0')}]`)
+                .join(', ');
 
             return {
                 success: true,
-                events: [],
-                message: `Retrieved events from ${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}`,
+                events: filtered,
+                message: filtered.length > 0
+                    ? `Found ${filtered.length} events: ${eventList}`
+                    : `No events found between ${start.toLocaleString()} and ${end.toLocaleString()}.`,
+            };
+        }
+    },
+    {
+        name: 'updateCalendarEvent',
+        title: 'Update Calendar Event',
+        description: 'Update an existing calendar event',
+        inputSchema: UpdateEventSchema,
+        outputSchema: UpdateEventOutputSchema,
+        tool: async (patch: z.infer<typeof UpdateEventSchema>) => {
+            const store = getDefaultStore();
+            const allEvents = store.get(eventsAtom);
+            const existing = allEvents.find(e => e.id === patch.id);
+
+            if (!existing) {
+                return { success: false, message: `Event with ID ${patch.id} not found` };
+            }
+
+            const updated: CalendarEvent = {
+                ...existing,
+                title: patch.title ?? existing.title,
+                startDate: patch.startDate ?? existing.startDate,
+                endDate: patch.endDate ?? existing.endDate,
+                description: patch.description ?? existing.description,
+                color: (patch.color as EventColor) ?? existing.color,
+                meta: { source: 'ai' }
+            };
+
+            const action: CalendarAction = {
+                id: uuid(),
+                type: 'UPDATE_EVENT',
+                timestamp: new Date().toISOString(),
+                source: 'ai',
+                payload: { before: existing, after: updated },
+            };
+
+            store.set(eventsAtom, (prev) => prev.map(e => e.id === patch.id ? updated : e));
+            store.set(actionHistoryAtom, (prev) => [...prev, action]);
+            eventBus.emit({ type: 'event.updated', action });
+
+            return {
+                success: true,
+                message: `Updated event "${updated.title}"`,
+            };
+        }
+    },
+    {
+        name: 'deleteCalendarEvent',
+        title: 'Delete Calendar Event',
+        description: 'Remove an event from the calendar',
+        inputSchema: DeleteEventSchema,
+        outputSchema: DeleteEventOutputSchema,
+        tool: async ({ id }: z.infer<typeof DeleteEventSchema>) => {
+            const store = getDefaultStore();
+            const allEvents = store.get(eventsAtom);
+            const existing = allEvents.find(e => e.id === id);
+
+            if (!existing) {
+                return { success: false, message: `Event with ID ${id} not found` };
+            }
+
+            const action: CalendarAction = {
+                id: uuid(),
+                type: 'DELETE_EVENT',
+                timestamp: new Date().toISOString(),
+                source: 'ai',
+                payload: { event: existing },
+            };
+
+            store.set(eventsAtom, (prev) => prev.filter(e => e.id !== id));
+            store.set(actionHistoryAtom, (prev) => [...prev, action]);
+            eventBus.emit({ type: 'event.deleted', action });
+
+            return {
+                success: true,
+                message: `Deleted event "${existing.title}"`,
+            };
+        }
+    },
+    {
+        name: 'reorganizeEvents',
+        title: 'Reorganize Events',
+        description: 'Perform multiple calendar actions (create, update, delete) at once to reorganize the schedule',
+        inputSchema: ReorganizeEventsSchema,
+        outputSchema: ReorganizeOutputSchema,
+        tool: async ({ actions, explanation }: z.infer<typeof ReorganizeEventsSchema>) => {
+            const store = getDefaultStore();
+            const timestamp = new Date().toISOString();
+            let actionCount = 0;
+
+            for (const actionData of actions) {
+                const currentEvents = store.get(eventsAtom);
+
+                if (actionData.type === 'create') {
+                    const event: CalendarEvent = {
+                        id: uuid(),
+                        title: actionData.event.summary,
+                        startDate: actionData.event.startDateTime,
+                        endDate: actionData.event.endDateTime,
+                        description: actionData.event.description,
+                        color: 'purple', // Reorganized events get a distinct color
+                        meta: { source: 'ai' }
+                    };
+                    const action: CalendarAction = {
+                        id: uuid(),
+                        type: 'ADD_EVENT',
+                        timestamp,
+                        source: 'ai',
+                        explanation,
+                        payload: { event },
+                    };
+                    store.set(eventsAtom, (prev) => [...prev, event]);
+                    store.set(actionHistoryAtom, (prev) => [...prev, action]);
+                    eventBus.emit({ type: 'event.created', action });
+                }
+                else if (actionData.type === 'update') {
+                    const existing = currentEvents.find(e => e.id === actionData.patch.id);
+                    if (existing) {
+                        const updated: CalendarEvent = {
+                            ...existing,
+                            title: actionData.patch.title ?? existing.title,
+                            startDate: actionData.patch.startDate ?? existing.startDate,
+                            endDate: actionData.patch.endDate ?? existing.endDate,
+                            description: actionData.patch.description ?? existing.description,
+                            color: (actionData.patch.color as EventColor) ?? existing.color,
+                            meta: { source: 'ai' }
+                        };
+                        const action: CalendarAction = {
+                            id: uuid(),
+                            type: 'UPDATE_EVENT',
+                            timestamp,
+                            source: 'ai',
+                            explanation,
+                            payload: { before: existing, after: updated },
+                        };
+                        store.set(eventsAtom, (prev) => prev.map(e => e.id === actionData.patch.id ? updated : e));
+                        store.set(actionHistoryAtom, (prev) => [...prev, action]);
+                        eventBus.emit({ type: 'event.updated', action });
+                    }
+                }
+                else if (actionData.type === 'delete') {
+                    const existing = currentEvents.find(e => e.id === actionData.id);
+                    if (existing) {
+                        const action: CalendarAction = {
+                            id: uuid(),
+                            type: 'DELETE_EVENT',
+                            timestamp,
+                            source: 'ai',
+                            explanation,
+                            payload: { event: existing },
+                        };
+                        store.set(eventsAtom, (prev) => prev.filter(e => e.id !== actionData.id));
+                        store.set(actionHistoryAtom, (prev) => [...prev, action]);
+                        eventBus.emit({ type: 'event.deleted', action });
+                    }
+                }
+                actionCount++;
+            }
+
+            return {
+                success: true,
+                message: `Reorganized schedule with ${actionCount} changes.`,
+                actionCount,
             };
         }
     },
@@ -140,12 +397,23 @@ export const tamboTools = [
         inputSchema: SuggestBlocksSchema,
         outputSchema: SuggestBlocksOutputSchema,
         tool: async ({ goals, numberOfBlocks = 3, blockDuration = 90 }: z.infer<typeof SuggestBlocksSchema>) => {
+            const store = getDefaultStore();
+            const events = store.get(eventsAtom);
+
+            // In a real scenario, this would involve a complex algorithm.
+            // For now, we return the existing events so the AI can reason about them
+            // or we could suggest some mock blocks.
             console.log('Suggesting time blocks for:', goals, 'count:', numberOfBlocks, 'duration:', blockDuration);
 
             return {
                 success: true,
-                message: `Suggested ${numberOfBlocks} time blocks for: ${goals}`,
-                blocks: [],
+                message: `Analyzing calendar to suggest ${numberOfBlocks} time blocks for: ${goals}`,
+                blocks: events.map(e => ({
+                    title: e.title,
+                    startTime: e.startDate,
+                    endTime: e.endDate,
+                    type: 'deep-work'
+                })).slice(0, numberOfBlocks),
             };
         }
     }

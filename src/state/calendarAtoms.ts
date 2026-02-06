@@ -58,3 +58,23 @@ export interface MultiDayDragState {
 
 export const multiDayDragAtom = atom<MultiDayDragState | null>(null);
 
+// --- Chat & Revert State ---
+
+export const chatThreadIdAtom = atom<string | null>(null);
+
+export interface Checkpoint {
+  messageId: string;
+  historyIndex: number;
+  eventIds: string[]; // Store IDs of events touched by this message
+}
+
+export const checkpointsAtom = atom<Checkpoint[]>([]);
+
+export interface ThreadHistoryEntry {
+  id: string;
+  title: string;
+  timestamp: string;
+}
+
+export const threadsHistoryAtom = atom<ThreadHistoryEntry[]>([]);
+

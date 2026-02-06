@@ -1,10 +1,14 @@
 import { useState } from "react";
+import { useAtom } from "jotai";
 import { ChatPane } from "@/components/chat/ChatPane";
 import { CalendarRoot } from "@/components/calendar/CalendarRoot";
 import { Button } from "@/components/ui/button";
+import { chatThreadIdAtom } from "@/state/calendarAtoms";
 
 export default function Home() {
   const [showChat, setShowChat] = useState(false);
+
+  const [threadId] = useAtom(chatThreadIdAtom);
 
   return (
     <div className="flex h-screen overflow-hidden bg-background text-foreground relative">
@@ -18,7 +22,7 @@ export default function Home() {
         fixed inset-y-0 right-0 z-40 flex w-full flex-col border-l bg-background/95 backdrop-blur-sm transition-transform duration-300 ease-in-out md:static md:w-[300px] lg:w-[360px] md:translate-x-0
         ${showChat ? "translate-x-0" : "translate-x-full"}
       `}>
-        <ChatPane onClose={() => setShowChat(false)} />
+        <ChatPane key={threadId || "default"} onClose={() => setShowChat(false)} />
       </div>
 
       {/* Mobile Chat Toggle Button */}

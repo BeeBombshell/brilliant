@@ -10,6 +10,18 @@ export function GoogleCalendarSync() {
     const { isAuthenticated, isLoading } = useGoogleAuth();
     const [, setEvents] = useAtom(eventsAtom);
 
+    const withRetry = async <T,>(fn: () => Promise<T>, retries = 3, delay = 1000): Promise<T> => {
+        try {
+            return await fn();
+        } catch (err) {
+            if (retries > 0) {
+                await new Promise(resolve => setTimeout(resolve, delay));
+                return withRetry(fn, retries - 1, delay * 2);
+            }
+            throw err;
+        }
+    };
+
     // Sync from Google on mount/auth and poll every 60s
     useEffect(() => {
         if (!isAuthenticated || isLoading) return;
@@ -109,7 +121,7 @@ export function GoogleCalendarSync() {
             const { event } = (action as any).payload;
 
             try {
-                const response = await gapi.client.calendar.events.insert({
+                const response = await withRetry(() => gapi.client.calendar.events.insert({
                     calendarId: 'primary',
                     resource: {
                         summary: event.title,
@@ -117,12 +129,12 @@ export function GoogleCalendarSync() {
                         start: { dateTime: event.startDate },
                         end: { dateTime: event.endDate },
                     }
-                });
+                }));
 
                 setEvents(prev => prev.map(e =>
                     e.id === event.id ? { ...e, googleEventId: response.result.id, meta: { ...e.meta, source: "system" } as any } : e
                 ));
-
+                console.log("Successfully created Google event", response.result.id);
             } catch (err) {
                 console.error("Error creating Google event", err);
             }
@@ -137,7 +149,7 @@ export function GoogleCalendarSync() {
             if (!after.googleEventId) return;
 
             try {
-                await gapi.client.calendar.events.patch({
+                await withRetry(() => gapi.client.calendar.events.patch({
                     calendarId: 'primary',
                     eventId: after.googleEventId,
                     resource: {
@@ -146,9 +158,47 @@ export function GoogleCalendarSync() {
                         start: { dateTime: after.startDate },
                         end: { dateTime: after.endDate },
                     }
-                });
+                }));
+                console.log("Successfully updated Google event", after.googleEventId);
             } catch (err) {
                 console.error("Error updating Google event", err);
+            }
+        };
+
+        const handleHistoryAction = async (payload: any) => {
+            const { action } = payload;
+            if (payload.type === 'history.undone') {
+                // If we undone an ADD, we should DELETE in Google
+                if (action.type === 'ADD_EVENT') {
+                    const { event } = action.payload;
+                    if (event.googleEventId) {
+                        try {
+                            await withRetry(() => gapi.client.calendar.events.delete({
+                                calendarId: 'primary',
+                                eventId: event.googleEventId
+                            }));
+                        } catch (err) { console.error("Error undoing Google event create", err); }
+                    }
+                }
+                // If we undone a DELETE, we should CREATE in Google
+                else if (action.type === 'DELETE_EVENT') {
+                    const { event } = action.payload;
+                    handleEventCreated({ type: 'event.created', action: { ...action, payload: { event } } });
+                }
+                // If we undone an UPDATE, we should UPDATE in Google (to 'before' state)
+                else if (action.type === 'UPDATE_EVENT' || action.type === 'MOVE_EVENT') {
+                    const { before } = action.payload;
+                    handleEventUpdated({ type: 'event.updated', action: { ...action, payload: { after: before } } });
+                }
+            } else if (payload.type === 'history.redone') {
+                // Similar logic for Redo
+                if (action.type === 'ADD_EVENT') {
+                    handleEventCreated({ type: 'event.created', action });
+                } else if (action.type === 'DELETE_EVENT') {
+                    handleEventDeleted({ type: 'event.deleted', action });
+                } else if (action.type === 'UPDATE_EVENT' || action.type === 'MOVE_EVENT') {
+                    handleEventUpdated({ type: 'event.updated', action });
+                }
             }
         };
 
@@ -180,12 +230,16 @@ export function GoogleCalendarSync() {
         const unsubUpdated = eventBus.subscribe("event.updated", handleEventUpdated);
         const unsubDeleted = eventBus.subscribe("event.deleted", handleEventDeleted);
         const unsubMoved = eventBus.subscribe("event.moved", handleEventMoved);
+        const unsubUndone = eventBus.subscribe("history.undone", handleHistoryAction);
+        const unsubRedone = eventBus.subscribe("history.redone", handleHistoryAction);
 
         return () => {
             unsubCreated();
             unsubUpdated();
             unsubDeleted();
             unsubMoved();
+            unsubUndone();
+            unsubRedone();
         };
     }, [isAuthenticated, setEvents]);
 

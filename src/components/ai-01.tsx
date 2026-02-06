@@ -72,7 +72,7 @@ export default function Ai01() {
           type="file"
           multiple
           className="sr-only"
-          onChange={(e) => {}}
+          onChange={() => {}}
         />
 
         <div

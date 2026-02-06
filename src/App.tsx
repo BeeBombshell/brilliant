@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useAtom } from "jotai";
-import { TamboProvider } from "@tambo-ai/react";
+import { TamboProvider, useTamboThread } from "@tambo-ai/react";
 
 import { eventsAtom, chatThreadIdAtom } from "@/state/calendarAtoms";
 import { tamboComponents, tamboTools } from './lib/tambo-config';
@@ -11,11 +11,23 @@ import Home from "./pages/Home";
 
 
 
+function ThreadManager() {
+  const [threadId] = useAtom(chatThreadIdAtom);
+  const { currentThreadId, switchCurrentThread } = useTamboThread();
+
+  useEffect(() => {
+    if (threadId && threadId !== currentThreadId) {
+      switchCurrentThread(threadId);
+    }
+  }, [threadId, currentThreadId, switchCurrentThread]);
+
+  return null;
+}
+
 function AppContent() {
   const { isAuthenticated, isLoading } = useGoogleAuth();
 
   const [, setEvents] = useAtom(eventsAtom);
-  const [threadId] = useAtom(chatThreadIdAtom);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -36,8 +48,8 @@ function AppContent() {
       apiKey={import.meta.env.VITE_TAMBO_API_KEY}
       components={tamboComponents}
       tools={tamboTools}
-      threadId={threadId || undefined}
     >
+      <ThreadManager />
       <GoogleCalendarSync />
       <Home />
     </TamboProvider>

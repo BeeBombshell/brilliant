@@ -14,12 +14,12 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCalendarActions } from "@/hooks/useCalendarActions";
-import type { CalendarEvent, EventColor } from "@/types/calendar";
+import type { EventColor } from "@/types/calendar";
+import { useAtom } from "jotai";
+import { selectedEventIdAtom, eventsAtom } from "@/state/calendarAtoms";
 
 interface EventDetailsDialogProps {
-  event: CalendarEvent | null;
-  open: boolean;
-  onClose: () => void;
+  onClose?: () => void;
 }
 
 const colorLabels: Record<string, { name: string; class: string }> = {
@@ -32,7 +32,12 @@ const colorLabels: Record<string, { name: string; class: string }> = {
   gray: { name: "Slate", class: "bg-slate-500" },
 };
 
-export function EventDetailsDialog({ event, open, onClose }: EventDetailsDialogProps) {
+export function EventDetailsDialog({ onClose }: EventDetailsDialogProps = {}) {
+  const [selectedEventId, setSelectedEventId] = useAtom(selectedEventIdAtom);
+  const [events] = useAtom(eventsAtom);
+  const event = events.find((e) => e.id === selectedEventId) || null;
+  const open = !!selectedEventId;
+
   const { updateEvent, deleteEvent } = useCalendarActions();
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -85,7 +90,8 @@ export function EventDetailsDialog({ event, open, onClose }: EventDetailsDialogP
   const handleClose = () => {
     setIsEditing(false);
     setShowDeleteConfirm(false);
-    onClose();
+    setSelectedEventId(null);
+    onClose?.();
   };
 
   const handleSave = () => {
@@ -116,14 +122,12 @@ export function EventDetailsDialog({ event, open, onClose }: EventDetailsDialogP
       meta: { ...prev.meta, source: "user" }
     }));
 
-    setIsEditing(false);
-    onClose();
+    handleClose();
   };
 
   const handleDelete = () => {
     deleteEvent(event.id);
-    setShowDeleteConfirm(false);
-    onClose();
+    handleClose();
   };
 
   return (
@@ -349,7 +353,11 @@ export function EventDetailsDialog({ event, open, onClose }: EventDetailsDialogP
               {event.meta?.source && (
                 <div className="flex items-center gap-2 pt-2">
                   <Badge variant="outline" className="text-xs">
-                    {event.meta.source === "ai" ? "AI Generated" : "User Created"}
+                    {event.meta.source === "ai"
+                      ? "AI Generated"
+                      : event.meta.source === "system"
+                        ? "Google Calendar"
+                        : "User Created"}
                   </Badge>
                 </div>
               )}

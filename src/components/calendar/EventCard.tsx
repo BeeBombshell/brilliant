@@ -6,7 +6,6 @@ interface EventCardProps {
   style: React.CSSProperties;
   onClick?: () => void;
   onPointerDown?: (e: React.PointerEvent<HTMLButtonElement>) => void;
-  isDraggable?: boolean;
   className?: string;
   durationMinutes: number;
 }
@@ -26,12 +25,11 @@ export function EventCard({
   style,
   onClick,
   onPointerDown,
-  isDraggable = false,
   className,
   durationMinutes,
 }: EventCardProps) {
   const handlePointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
-    if (isDraggable && onPointerDown) {
+    if (onPointerDown) {
       e.stopPropagation();
       onPointerDown(e);
     }

@@ -7,7 +7,7 @@ import type { CalendarEvent } from "@/types/calendar";
 interface MultiDayEventsRowProps {
   events: CalendarEvent[];
   selectedDate: Date;
-  onEventClick?: (event: CalendarEvent) => void;
+  onEventClick?: (eventId: string) => void;
 }
 
 export function MultiDayEventsRow({
@@ -100,34 +100,34 @@ export function MultiDayEventsRow({
       <div className="grid flex-1 grid-cols-7 divide-x border-b border-l bg-background">
         {weekDays.map((day, dayIndex) => {
           return (
-          <div key={day.toISOString()} className="flex flex-col gap-1 py-1 min-h-[100px] bg-background">
-            {visibleRows.map((row, rowIndex) => {
-              const event = row.find((e) => e.startIndex <= dayIndex && e.endIndex >= dayIndex);
+            <div key={day.toISOString()} className="flex flex-col gap-1 py-1 min-h-[100px] bg-background">
+              {visibleRows.map((row, rowIndex) => {
+                const event = row.find((e) => e.startIndex <= dayIndex && e.endIndex >= dayIndex);
 
-              if (!event) {
-                return <div key={`${rowIndex}-${dayIndex}`} className="h-6.5" />;
-              }
+                if (!event) {
+                  return <div key={`${rowIndex}-${dayIndex}`} className="h-6.5" />;
+                }
 
-              const position = getMultiDayPosition(event, startOfDay(day));
+                const position = getMultiDayPosition(event, startOfDay(day));
 
-              return (
-                <MultiDayEventBadge
-                  key={`${event.id}-${dayIndex}`}
-                  event={event}
-                  position={position}
-                  onClick={() => onEventClick?.(event)}
-                />
-              );
-            })}
-            {dayIndex === 0 && hiddenCount > 0 && (
-              <button
-                onClick={() => setShowAll(!showAll)}
-                className="h-6.5 mx-1 text-xs text-muted-foreground hover:text-foreground"
-              >
-                {showAll ? "Show less" : `+${hiddenCount} more`}
-              </button>
-            )}
-          </div>
+                return (
+                  <MultiDayEventBadge
+                    key={`${event.id}-${dayIndex}`}
+                    event={event}
+                    position={position}
+                    onClick={() => onEventClick?.(event.id)}
+                  />
+                );
+              })}
+              {dayIndex === 0 && hiddenCount > 0 && (
+                <button
+                  onClick={() => setShowAll(!showAll)}
+                  className="h-6.5 mx-1 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  {showAll ? "Show less" : `+${hiddenCount} more`}
+                </button>
+              )}
+            </div>
           );
         })}
       </div>

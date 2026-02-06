@@ -3,12 +3,11 @@ import { addDays, format, parseISO, isToday } from "date-fns";
 import { useAtom } from "jotai";
 
 import { selectedDateAtom, eventsAtom, newEventDraftAtom } from "@/state/calendarAtoms";
+import { useCalendarActions } from "@/hooks/useCalendarActions";
 import { CurrentTimeIndicator } from "@/components/calendar/CurrentTimeIndicator";
-import { EventDetailsDialog } from "@/components/calendar/EventDetailsDialog";
 import { MultiDayEventsRow } from "@/components/calendar/MultiDayEventsRow";
 import { EventCard } from "@/components/calendar/EventCard";
 import { isMultiDayEvent, groupOverlappingEvents, getEventBlockStyle } from "@/lib/eventLayoutUtils";
-import type { CalendarEvent } from "@/types/calendar";
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const minutesInDay = 24 * 60;
@@ -38,7 +37,7 @@ export function CalendarWeekView() {
     containerHeight: number;
     isDragging: boolean;
   } | null>(null);
-  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const { setSelectedEventId } = useCalendarActions();
 
   const dayOfWeek = selectedDate.getDay();
   const weekStart = addDays(selectedDate, -dayOfWeek);
@@ -211,11 +210,6 @@ export function CalendarWeekView() {
 
   return (
     <>
-      <EventDetailsDialog
-        event={selectedEvent}
-        open={!!selectedEvent}
-        onClose={() => setSelectedEvent(null)}
-      />
       <div className="flex h-full flex-col overflow-auto bg-background">
         {/* Sticky header section */}
         <div className="sticky top-0 z-40 bg-background">
@@ -223,7 +217,7 @@ export function CalendarWeekView() {
           <MultiDayEventsRow
             events={events}
             selectedDate={selectedDate}
-            onEventClick={setSelectedEvent}
+            onEventClick={(id) => setSelectedEventId(id)}
           />
 
           {/* Day names row */}
@@ -381,7 +375,7 @@ export function CalendarWeekView() {
                           key={event.id}
                           event={event}
                           durationMinutes={durationMinutes}
-                          onClick={() => setSelectedEvent(event)}
+                          onClick={() => setSelectedEventId(event.id)}
                           onPointerDown={(e) => e.stopPropagation()}
                           style={{
                             top: blockStyle.top,

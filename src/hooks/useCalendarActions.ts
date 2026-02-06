@@ -44,7 +44,6 @@ export function useCalendarActions() {
       };
 
       setEvents(prev => [...prev, event]);
-      setSelectedEventId(event.id);
       commitAction(action, "event.created");
     },
     [commitAction, setEvents, setSelectedEventId]
@@ -197,6 +196,7 @@ export function useCalendarActions() {
     redoStack,
     view,
     selectedDate,
+    setSelectedEventId,
     addEvent,
     updateEvent,
     deleteEvent,

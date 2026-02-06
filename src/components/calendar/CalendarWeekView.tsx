@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { addDays, format, parseISO, isToday } from "date-fns";
 import { useAtom } from "jotai";
 
@@ -29,6 +29,8 @@ export function CalendarWeekView() {
   const [, setDraft] = useAtom(newEventDraftAtom);
   const dayColumnsRef = useRef<HTMLDivElement | null>(null);
   const dragColumnCacheRef = useRef<DragColumnCache | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const hasAutoScrolledRef = useRef(false);
   const [dragState, setDragState] = useState<{
     startDayIndex: number;
     currentDayIndex: number;
@@ -43,6 +45,21 @@ export function CalendarWeekView() {
   const weekStart = addDays(selectedDate, -dayOfWeek);
 
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+
+  // Auto-scroll to current time on initial mount only
+  useEffect(() => {
+    const isTodayInWeek = days.some(day => isToday(day));
+    if (scrollContainerRef.current && isTodayInWeek && !hasAutoScrolledRef.current) {
+      const now = new Date();
+      const minutes = now.getHours() * 60 + now.getMinutes();
+      const top = (minutes / minutesInDay) * (24 * HOUR_HEIGHT);
+      const containerHeight = scrollContainerRef.current.clientHeight;
+
+      // Center the current time
+      scrollContainerRef.current.scrollTop = top - containerHeight / 2;
+      hasAutoScrolledRef.current = true;
+    }
+  }, [selectedDate, days]);
 
   const rebuildDragColumnCache = (): DragColumnCache | null => {
     const dayColumnsContainer = dayColumnsRef.current;
@@ -210,7 +227,7 @@ export function CalendarWeekView() {
 
   return (
     <>
-      <div className="flex h-full flex-col overflow-auto bg-background">
+      <div ref={scrollContainerRef} className="flex h-full flex-col overflow-auto bg-background">
         {/* Sticky header section */}
         <div className="sticky top-0 z-40 bg-background">
           {/* Multi-day events row */}

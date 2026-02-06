@@ -124,10 +124,11 @@ export function CalendarDayView() {
       : null;
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const hasAutoScrolledRef = useRef(false);
 
-  // Auto-scroll to current time on mount
+  // Auto-scroll to current time on initial mount only
   useEffect(() => {
-    if (scrollContainerRef.current) {
+    if (scrollContainerRef.current && isToday(selectedDate) && !hasAutoScrolledRef.current) {
       const now = new Date();
       const minutes = now.getHours() * 60 + now.getMinutes();
       const top = (minutes / minutesInDay) * (24 * HOUR_HEIGHT);
@@ -135,8 +136,9 @@ export function CalendarDayView() {
 
       // Center the current time
       scrollContainerRef.current.scrollTop = top - containerHeight / 2;
+      hasAutoScrolledRef.current = true;
     }
-  }, []);
+  }, [selectedDate]);
 
   return (
     <>

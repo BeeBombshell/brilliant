@@ -2,7 +2,7 @@ import { useRef, useState, useEffect } from "react";
 import { addDays, format, parseISO, isToday } from "date-fns";
 import { useAtom } from "jotai";
 
-import { selectedDateAtom, eventsAtom, newEventDraftAtom } from "@/state/calendarAtoms";
+import { selectedDateAtom, expandedEventsAtom, newEventDraftAtom } from "@/state/calendarAtoms";
 import { useCalendarActions } from "@/hooks/useCalendarActions";
 import { CurrentTimeIndicator } from "@/components/calendar/CurrentTimeIndicator";
 import { MultiDayEventsRow } from "@/components/calendar/MultiDayEventsRow";
@@ -25,7 +25,7 @@ type DragColumnCache = {
 
 export function CalendarWeekView() {
   const [selectedDate] = useAtom(selectedDateAtom);
-  const [events] = useAtom(eventsAtom);
+  const [events] = useAtom(expandedEventsAtom);
   const [, setDraft] = useAtom(newEventDraftAtom);
   const dayColumnsRef = useRef<HTMLDivElement | null>(null);
   const dragColumnCacheRef = useRef<DragColumnCache | null>(null);
@@ -298,7 +298,7 @@ export function CalendarWeekView() {
               const isDayInDragRange = dragState && dragState.isDragging && index >= minDayIdx && index <= maxDayIdx;
 
               // Calculate overlay based on position in drag range
-              let dragOverlay = null;
+              let dragOverlay: { top: number; height: number } | null = null;
               if (isDayInDragRange && dragState) {
                 const isFirstDay = index === minDayIdx;
                 const isLastDay = index === maxDayIdx;

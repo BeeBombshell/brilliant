@@ -1,16 +1,55 @@
 import { atom } from "jotai";
+import {
+  startOfMonth,
+  endOfMonth,
+  addDays,
+} from "date-fns";
 import type {
   CalendarAction,
   CalendarEvent,
   CalendarView,
   NewEventDraft,
 } from "@/types/calendar";
+import { expandAllRecurringEvents } from "@/lib/dateUtils";
 
 export const selectedDateAtom = atom<Date>(new Date());
 
 export const viewAtom = atom<CalendarView>("week");
 
 export const eventsAtom = atom<CalendarEvent[]>([]);
+
+/**
+ * Derived read-only atom that expands recurring events into concrete instances
+ * for the currently visible date range (based on selectedDate and view).
+ * All calendar views should use this instead of eventsAtom directly.
+ */
+export const expandedEventsAtom = atom<CalendarEvent[]>((get) => {
+  const events = get(eventsAtom);
+  const selectedDate = get(selectedDateAtom);
+  const view = get(viewAtom);
+
+  // Calculate visible range based on the current view, with generous padding
+  let rangeStart: Date;
+  let rangeEnd: Date;
+
+  switch (view) {
+    case "day":
+      rangeStart = addDays(selectedDate, -1);
+      rangeEnd = addDays(selectedDate, 1);
+      break;
+    case "week":
+      rangeStart = addDays(selectedDate, -7);
+      rangeEnd = addDays(selectedDate, 7);
+      break;
+    case "month":
+    default:
+      rangeStart = addDays(startOfMonth(selectedDate), -7);
+      rangeEnd = addDays(endOfMonth(selectedDate), 7);
+      break;
+  }
+
+  return expandAllRecurringEvents(events, rangeStart, rangeEnd);
+});
 
 export const selectedEventIdAtom = atom<string | null>(null);
 

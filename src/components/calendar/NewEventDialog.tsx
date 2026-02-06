@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { newEventDraftAtom } from "@/state/calendarAtoms";
 import { useCalendarActions } from "@/hooks/useCalendarActions";
-import type { EventColor } from "@/types/calendar";
+import type { EventColor, RecurrenceRule } from "@/types/calendar";
 
 export function NewEventDialog() {
   const [draft, setDraft] = useAtom(newEventDraftAtom);
@@ -27,6 +27,9 @@ export function NewEventDialog() {
   const [endInput, setEndInput] = useState("");
   const [color, setColor] = useState<EventColor>("blue");
   const [titleError, setTitleError] = useState("");
+  const [recurrenceEnabled, setRecurrenceEnabled] = useState(false);
+  const [recurrenceFrequency, setRecurrenceFrequency] = useState<RecurrenceRule["frequency"]>("WEEKLY");
+  const [recurrenceCount, setRecurrenceCount] = useState<string>("10");
 
   const toLocalInputValue = (iso: string) => {
     const date = parseISO(iso);
@@ -53,6 +56,9 @@ export function NewEventDialog() {
       setEndInput(toLocalInputValue(draft.endDate));
       setColor("blue");
       setTitleError("");
+      setRecurrenceEnabled(false);
+      setRecurrenceFrequency("WEEKLY");
+      setRecurrenceCount("10");
     }
   }, [draft]);
 
@@ -115,6 +121,13 @@ export function NewEventDialog() {
       endDate: formatISO(end),
       color,
       meta: { source: "user" as const },
+      ...(recurrenceEnabled && {
+        recurrence: {
+          frequency: recurrenceFrequency,
+          count: recurrenceCount ? parseInt(recurrenceCount, 10) : undefined,
+          interval: 1,
+        } satisfies RecurrenceRule,
+      }),
     };
 
     addEvent(newEvent);
@@ -226,6 +239,54 @@ export function NewEventDialog() {
                   className="text-sm"
                 />
               </div>
+            </div>
+          </div>
+          <div className="space-y-2.5">
+            <label className="text-sm font-medium flex items-center gap-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M17 2.1l4 4-4 4" />
+                <path d="M3 12.2v-2a4 4 0 0 1 4-4h12.8" />
+                <path d="M7 21.9l-4-4 4-4" />
+                <path d="M21 11.8v2a4 4 0 0 1-4 4H4.2" />
+              </svg>
+              Repeat
+            </label>
+            <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                variant={recurrenceEnabled ? "default" : "outline"}
+                size="sm"
+                onClick={() => setRecurrenceEnabled(!recurrenceEnabled)}
+                className="h-8"
+              >
+                {recurrenceEnabled ? "Repeating" : "No repeat"}
+              </Button>
+              {recurrenceEnabled && (
+                <Select value={recurrenceFrequency} onValueChange={v => setRecurrenceFrequency(v as RecurrenceRule["frequency"])}>
+                  <SelectTrigger className="h-8 w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="DAILY">Daily</SelectItem>
+                    <SelectItem value="WEEKLY">Weekly</SelectItem>
+                    <SelectItem value="MONTHLY">Monthly</SelectItem>
+                    <SelectItem value="YEARLY">Yearly</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+              {recurrenceEnabled && (
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={365}
+                    value={recurrenceCount}
+                    onChange={e => setRecurrenceCount(e.target.value)}
+                    className="h-8 w-16 text-sm"
+                  />
+                  <span className="text-xs text-muted-foreground">times</span>
+                </div>
+              )}
             </div>
           </div>
           <div className="space-y-2.5">

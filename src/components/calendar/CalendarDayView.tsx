@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { parseISO, differenceInMinutes, format, isToday, startOfDay, endOfDay } from "date-fns";
 import { useAtom } from "jotai";
 
-import { selectedDateAtom, eventsAtom, newEventDraftAtom } from "@/state/calendarAtoms";
+import { selectedDateAtom, expandedEventsAtom, newEventDraftAtom } from "@/state/calendarAtoms";
 import { CurrentTimeIndicator } from "@/components/calendar/CurrentTimeIndicator";
 import { useCalendarActions } from "@/hooks/useCalendarActions";
 import { HappeningNowSidebar } from "@/components/calendar/HappeningNowSidebar";
@@ -17,7 +17,7 @@ const DRAG_THRESHOLD = 5; // pixels - minimum movement to be considered a drag
 
 export function CalendarDayView() {
   const [selectedDate] = useAtom(selectedDateAtom);
-  const [events] = useAtom(eventsAtom);
+  const [events] = useAtom(expandedEventsAtom);
   const [, setDraft] = useAtom(newEventDraftAtom);
   const [dragStartY, setDragStartY] = useState<number | null>(null);
   const [dragCurrentY, setDragCurrentY] = useState<number | null>(null);

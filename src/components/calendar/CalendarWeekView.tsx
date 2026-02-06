@@ -239,12 +239,12 @@ export function CalendarWeekView() {
 
           {/* Day names row */}
           <div className="flex">
-            <div className="w-18 border-b bg-background" />
+            <div className="sticky left-0 z-30 w-18 flex-none border-b border-r bg-background" />
             <div className="flex flex-1">
               {days.map((day) => (
                 <div
                   key={`header-${day.toISOString()}`}
-                  className="flex h-10 flex-1 items-center justify-center border-b border-r bg-background text-xs font-medium last:border-r-0"
+                  className="flex h-10 min-w-[140px] flex-1 items-center justify-center border-b border-r bg-background text-xs font-medium last:border-r-0"
                 >
                   <span className="text-muted-foreground">{format(day, "EEE")}</span>
                   <span className="ml-1 font-semibold">{format(day, "d")}</span>

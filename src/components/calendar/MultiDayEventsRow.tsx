@@ -96,11 +96,11 @@ export function MultiDayEventsRow({
 
   return (
     <div className="flex min-h-fit bg-background">
-      <div className="w-18 border-b bg-background" />
-      <div className="grid flex-1 grid-cols-7 divide-x border-b border-l bg-background">
+      <div className="sticky left-0 z-30 w-18 flex-none border-b border-r bg-background" />
+      <div className="flex flex-1 border-b bg-background">
         {weekDays.map((day, dayIndex) => {
           return (
-            <div key={day.toISOString()} className="flex flex-col gap-1 py-1 min-h-[100px] bg-background">
+            <div key={day.toISOString()} className="flex flex-col gap-1 py-1 min-h-[100px] min-w-[140px] flex-1 border-r last:border-r-0 bg-background">
               {visibleRows.map((row, rowIndex) => {
                 const event = row.find((e) => e.startIndex <= dayIndex && e.endIndex >= dayIndex);
 

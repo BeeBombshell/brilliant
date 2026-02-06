@@ -4,7 +4,7 @@ import { useGoogleAuth } from "@/contexts/GoogleAuthContext";
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { MessageBox } from "@/components/chat/MessageBox";
 import { actionLogAtom } from "@/state/calendarAtoms";
 
 import { useTamboThread, useTamboThreadInput } from "@tambo-ai/react";
@@ -499,27 +499,13 @@ export function ChatPane({ onClose }: ChatPaneProps) {
           </div>
         </Card>
 
-        <form className="space-y-2" onSubmit={handleSubmit}>
-          <Textarea
-            rows={3}
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSubmit();
-              }
-            }}
-            placeholder="Describe your goals, constraints, or preferences..."
-            className="resize-none focus-visible:ring-1"
-            disabled={isPending}
-          />
-          <div className="flex justify-end">
-            <Button type="submit" size="sm" disabled={isPending || !value.trim()}>
-              {isPending ? "Scheduling..." : "Ask AI to schedule"}
-            </Button>
-          </div>
-        </form>
+        <MessageBox
+          value={value}
+          onChange={setValue}
+          onSubmit={() => handleSubmit()}
+          placeholder="Describe your goals, constraints, or preferences..."
+          disabled={isPending}
+        />
       </div>
     </Card>
   );

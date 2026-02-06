@@ -18,10 +18,10 @@ export default function Home() {
       </div>
 
       {/* Chat Sidebar - Desktop: fixed width, Mobile: Overlay */}
-      <div className={`
+            <div className={`
         fixed inset-y-0 right-0 z-40 flex w-full flex-col border-l bg-background/95 backdrop-blur-sm transition-transform duration-300 ease-in-out md:static md:w-[300px] lg:w-[360px] md:translate-x-0 overflow-hidden
         ${showChat ? "translate-x-0" : "translate-x-full"}
-      `}>
+            `}>
         <ChatPane key={threadId || "default"} onClose={() => setShowChat(false)} />
       </div>
 

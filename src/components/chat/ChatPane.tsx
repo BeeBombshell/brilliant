@@ -14,7 +14,6 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { checkpointsAtom, eventsAtom, actionHistoryAtom, chatThreadIdAtom, threadsHistoryAtom } from "@/state/calendarAtoms";
 import { eventBus } from "@/lib/eventBus";
-import { v4 as uuid } from 'uuid';
 
 interface ChatMessage {
   id: string;
@@ -71,20 +70,13 @@ export function ChatPane({ onClose }: ChatPaneProps) {
   const { user, logout } = useGoogleAuth();
   const [actionLog] = useAtom(actionLogAtom);
 
-  const [threadId, setThreadId] = useAtom(chatThreadIdAtom);
+  const [threadId] = useAtom(chatThreadIdAtom);
   const [threadsHistory, setThreadsHistory] = useAtom(threadsHistoryAtom);
   const [showHistory, setShowHistory] = useState(false);
 
   // Tambo AI hooks - these use the threadId from the provider
-  const { thread } = useTamboThread();
+  const { thread, startNewThread, switchCurrentThread } = useTamboThread();
   const { value, setValue, submit, isPending } = useTamboThreadInput();
-
-  // Initialize threadId if it's null
-  useEffect(() => {
-    if (!threadId) {
-      setThreadId(uuid());
-    }
-  }, [threadId, setThreadId]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -229,14 +221,21 @@ export function ChatPane({ onClose }: ChatPaneProps) {
       }
     }
 
-    // Reset local state but don't reload
+    // Reset local state
     setCheckpoints([]);
-    setThreadId(uuid());
     setValue("");
+
+    // Start a new thread via Tambo
+    if (startNewThread) {
+      startNewThread();
+    }
   };
 
   const switchToThread = (id: string) => {
-    setThreadId(id);
+    // Use Tambo's API to switch threads
+    if (switchCurrentThread) {
+      switchCurrentThread(id);
+    }
     setShowHistory(false);
   };
 
@@ -382,7 +381,6 @@ export function ChatPane({ onClose }: ChatPaneProps) {
           </button>
         </div>
       </div>
-
       <div className="flex flex-1 flex-col gap-3 p-3 overflow-hidden min-h-0">
         <div className="flex-1 overflow-hidden rounded-md border bg-background/80 min-h-0">
           <div ref={messagesContainerRef} className="h-full overflow-y-auto p-3 scroll-smooth">

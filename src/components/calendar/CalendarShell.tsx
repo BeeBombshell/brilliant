@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { CalendarDateIcon } from "@/components/calendar/CalendarDateIcon";
+import { UserMenu } from "@/components/layout/UserMenu";
 import {
   viewAtom,
   selectedDateAtom,
@@ -78,7 +79,7 @@ export function CalendarShell({ children }: { children: React.ReactNode }) {
   return (
     <Card className="flex h-full flex-col border-none shadow-none">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b px-4 sm:px-6 py-3">
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row gap-3 sm:items-center flex-wrap">
           <div className="flex items-center gap-3">
             <CalendarDateIcon date={new Date()} onClick={goToday} />
             <div className="space-y-0.5">
@@ -119,75 +120,81 @@ export function CalendarShell({ children }: { children: React.ReactNode }) {
               </div>
             </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={undo}
-            disabled={history.length === 0}
-          >
-            Undo
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={redo}
-            disabled={redoStack.length === 0}
-            className="hidden sm:inline-flex"
-          >
-            Redo
-          </Button>
-          <Separator orientation="vertical" className="mx-2 h-6" />
-          <div className="flex items-center gap-1 rounded-md bg-muted p-1">
+          <Separator orientation="vertical" className="hidden sm:block h-12 self-center" />
+
+          <div className="flex items-center gap-2">
             <Button
+              variant="outline"
               size="sm"
-              variant={view === "day" ? "secondary" : "ghost"}
-              className="h-7 w-7 p-0"
-              onClick={() => changeView("day")}
-              title="Day view"
+              onClick={undo}
+              disabled={history.length === 0}
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                <line x1="3" y1="10" x2="21" y2="10" />
-              </svg>
+              Undo
             </Button>
             <Button
+              variant="outline"
               size="sm"
-              variant={view === "week" ? "secondary" : "ghost"}
-              className="h-7 w-7 p-0"
-              onClick={() => changeView("week")}
-              title="Week view"
+              onClick={redo}
+              disabled={redoStack.length === 0}
+              className="hidden sm:inline-flex"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                <line x1="3" y1="10" x2="21" y2="10" />
-                <line x1="9" y1="10" x2="9" y2="22" />
-                <line x1="15" y1="10" x2="15" y2="22" />
-              </svg>
-            </Button>
-            <Button
-              size="sm"
-              variant={view === "month" ? "secondary" : "ghost"}
-              className="h-7 w-7 p-0"
-              onClick={() => changeView("month")}
-              title="Month view"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                <line x1="3" y1="10" x2="21" y2="10" />
-                <line x1="9" y1="4" x2="9" y2="22" />
-                <line x1="15" y1="4" x2="15" y2="22" />
-                <line x1="3" y1="14" x2="21" y2="14" />
-                <line x1="3" y1="18" x2="21" y2="18" />
-              </svg>
+              Redo
             </Button>
           </div>
-          <Button variant="default" size="sm" onClick={createQuickEvent}>
-            + Event
-          </Button>
+
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 rounded-md bg-muted p-1">
+              <Button
+                size="sm"
+                variant={view === "day" ? "secondary" : "ghost"}
+                className="h-7 w-7 p-0"
+                onClick={() => changeView("day")}
+                title="Day view"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+              </Button>
+              <Button
+                size="sm"
+                variant={view === "week" ? "secondary" : "ghost"}
+                className="h-7 w-7 p-0"
+                onClick={() => changeView("week")}
+                title="Week view"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                  <line x1="9" y1="10" x2="9" y2="22" />
+                  <line x1="15" y1="10" x2="15" y2="22" />
+                </svg>
+              </Button>
+              <Button
+                size="sm"
+                variant={view === "month" ? "secondary" : "ghost"}
+                className="h-7 w-7 p-0"
+                onClick={() => changeView("month")}
+                title="Month view"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                  <line x1="9" y1="4" x2="9" y2="22" />
+                  <line x1="15" y1="4" x2="15" y2="22" />
+                  <line x1="3" y1="14" x2="21" y2="14" />
+                  <line x1="3" y1="18" x2="21" y2="18" />
+                </svg>
+              </Button>
+            </div>
+            <Button variant="default" size="sm" onClick={createQuickEvent}>
+              + Event
+            </Button>
+          </div>
         </div>
+
+        <UserMenu />
       </div>
 
       <div className="flex-1 overflow-auto">{children}</div>

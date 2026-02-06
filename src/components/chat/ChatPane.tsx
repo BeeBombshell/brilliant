@@ -1,6 +1,5 @@
 import { useMemo, useRef, useEffect } from "react";
 import { useAtom } from "jotai";
-import { useGoogleAuth } from "@/contexts/GoogleAuthContext";
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -77,7 +76,6 @@ function ToolCallBox({ toolCall }: { toolCall: any }) {
 }
 
 export function ChatPane({ onClose }: ChatPaneProps) {
-  const { user, logout } = useGoogleAuth();
   const [actionLog] = useAtom(actionLogAtom);
 
   const [threadId, setThreadId] = useAtom(chatThreadIdAtom);
@@ -336,6 +334,7 @@ export function ChatPane({ onClose }: ChatPaneProps) {
               <line x1="3" y1="18" x2="21" y2="18"></line>
             </svg>
           </Button>
+          <img src="/brilliant.svg" alt="Brilliant" className="size-6" />
           <span className="text-sm font-semibold">Brilliant Planner</span>
         </div>
         <div className="flex items-center gap-1">
@@ -374,33 +373,6 @@ export function ChatPane({ onClose }: ChatPaneProps) {
           </div>
         </div>
       )}
-
-      <div className="border-b px-4 py-3 bg-muted/10">
-        <div className="flex items-center gap-3">
-          {user?.picture ? (
-            <img src={user.picture} alt={user.name} className="size-8 rounded-full" />
-          ) : (
-            <div className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">
-              {user?.name?.[0] || "U"}
-            </div>
-          )}
-          <div className="flex-1 overflow-hidden">
-            <p className="truncate text-sm font-medium leading-none">{user?.name || "User"}</p>
-            <p className="truncate text-xs text-muted-foreground mt-0.5">{user?.email}</p>
-          </div>
-          <button
-            onClick={logout}
-            className="flex size-8 items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-            title="Sign out"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" x2="9" y1="12" y2="12" />
-            </svg>
-          </button>
-        </div>
-      </div>
 
       <div className="flex flex-1 flex-col gap-3 p-3 overflow-hidden">
         <div className="flex-1 overflow-hidden rounded-md border bg-background/80">

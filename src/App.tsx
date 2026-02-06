@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useAtom } from "jotai";
 import { TamboProvider } from "@tambo-ai/react";
 
-import { eventsAtom } from "@/state/calendarAtoms";
+import { eventsAtom, chatThreadIdAtom } from "@/state/calendarAtoms";
 import { tamboComponents, tamboTools } from './lib/tambo-config';
 import { GoogleAuthProvider, useGoogleAuth } from "@/contexts/GoogleAuthContext";
 import { GoogleCalendarSync } from "@/components/calendar/GoogleCalendarSync";
@@ -15,6 +15,7 @@ function AppContent() {
   const { isAuthenticated, isLoading } = useGoogleAuth();
 
   const [, setEvents] = useAtom(eventsAtom);
+  const [threadId] = useAtom(chatThreadIdAtom);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -31,23 +32,22 @@ function AppContent() {
   }
 
   return (
-    <>
+    <TamboProvider
+      apiKey={import.meta.env.VITE_TAMBO_API_KEY}
+      components={tamboComponents}
+      tools={tamboTools}
+      threadId={threadId || undefined}
+    >
       <GoogleCalendarSync />
       <Home />
-    </>
+    </TamboProvider>
   );
 }
 
 export function App() {
   return (
     <GoogleAuthProvider>
-      <TamboProvider
-        apiKey={import.meta.env.VITE_TAMBO_API_KEY}
-        components={tamboComponents}
-        tools={tamboTools}
-      >
-        <AppContent />
-      </TamboProvider>
+      <AppContent />
     </GoogleAuthProvider>
   );
 }

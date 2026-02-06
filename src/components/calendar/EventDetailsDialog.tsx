@@ -359,6 +359,22 @@ export function EventDetailsDialog({ onClose }: EventDetailsDialogProps = {}) {
                         ? "Google Calendar"
                         : "User Created"}
                   </Badge>
+                  {(event.recurrence || event.isInstance) && (
+                    <Badge variant="secondary" className="text-xs">
+                      🔁 {(() => {
+                        const rule = event.recurrence;
+                        if (!rule && event.isInstance) return "Recurring instance";
+                        if (!rule) return "";
+                        const freq = rule.frequency.charAt(0) + rule.frequency.slice(1).toLowerCase();
+                        const parts = [freq];
+                        if (rule.interval && rule.interval > 1) parts[0] = `Every ${rule.interval} ${freq.toLowerCase()}s`;
+                        if (rule.byDay?.length) parts.push(`on ${rule.byDay.join(", ")}`);
+                        if (rule.count) parts.push(`(${rule.count}×)`);
+                        if (rule.endDate) parts.push(`until ${format(parseISO(rule.endDate), "MMM d, yyyy")}`);
+                        return parts.join(" ");
+                      })()}
+                    </Badge>
+                  )}
                 </div>
               )}
             </div>

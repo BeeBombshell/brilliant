@@ -1,17 +1,18 @@
-import { useMemo, useRef, useEffect } from "react";
+import { useMemo, useRef, useEffect, useState, type ReactNode } from "react";
 import { useAtom } from "jotai";
 import { useGoogleAuth } from "@/contexts/GoogleAuthContext";
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { MessageBox } from "@/components/chat/MessageBox";
 import { actionLogAtom } from "@/state/calendarAtoms";
 
 import { useTamboThread, useTamboThreadInput } from "@tambo-ai/react";
+import type { TamboThreadMessage } from "@tambo-ai/react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { checkpointsAtom, eventsAtom, actionHistoryAtom, chatThreadIdAtom, threadsHistoryAtom } from "@/state/calendarAtoms";
-import { useState } from "react";
 import { eventBus } from "@/lib/eventBus";
 import { v4 as uuid } from 'uuid';
 
@@ -20,6 +21,8 @@ interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   toolCalls?: any[];
+  /** Pre-rendered Tambo generative UI component */
+  renderedComponent?: ReactNode;
 }
 
 interface ChatPaneProps {
@@ -27,51 +30,39 @@ interface ChatPaneProps {
 }
 
 function ToolCallBox({ toolCall }: { toolCall: any }) {
-  const [isOpen, setIsOpen] = useState(false);
   const isSuccess = toolCall.output?.success === true;
+  const isError = toolCall.output?.success === false;
+  const status = isSuccess ? "done" : isError ? "error" : "running";
+
+  const actionLabelMap: Record<string, string> = {
+    createCalendarEvent: "Event created",
+    createRecurringEvent: "Recurring event created",
+    updateCalendarEvent: "Event updated",
+    deleteCalendarEvent: "Event deleted",
+    getCalendarEvents: "Events fetched",
+    reorganizeEvents: "Schedule reorganized",
+  };
+
+  const label = actionLabelMap[toolCall.name] ?? toolCall.name ?? "Tool";
 
   return (
-    <div className="rounded-lg border bg-background/50 overflow-hidden text-xs my-1">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex w-full items-center justify-between p-2 hover:bg-muted/50 transition-colors"
+    <div className="my-1">
+      <Badge
+        variant="secondary"
+        className={`text-[10px] font-semibold tracking-tight border ${
+          status === "done"
+            ? "border-emerald-500/30 bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+            : status === "error"
+            ? "border-red-500/30 bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300"
+            : "border-amber-500/30 bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+        }`}
       >
-        <div className="flex items-center gap-2">
-          <div className={`size-2 rounded-full ${isSuccess ? 'bg-green-500' : 'bg-primary/60 animate-pulse'}`} />
-          <span className="font-mono font-medium truncate max-w-[180px]">
-            {toolCall.name}
-          </span>
-          {isSuccess && (
-            <div className="flex items-center gap-1.5 ml-auto">
-              <span className="text-[10px] font-semibold text-green-600 dark:text-green-500 uppercase tracking-tight">Completed</span>
-              <span className="flex items-center justify-center size-3.5 rounded-full bg-green-500 text-[10px] text-white font-bold">
-                ✓
-              </span>
-            </div>
-          )}
-        </div>
-        <svg
-          width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-          className={`transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
-        >
-          <polyline points="6 9 12 15 18 9"></polyline>
-        </svg>
-      </button>
-      {isOpen && (
-        <div className="border-t p-2 bg-muted/5">
-          <pre className="max-h-40 overflow-auto whitespace-pre-wrap font-mono text-[10px] opacity-80">
-            {JSON.stringify(toolCall.input, null, 2)}
-          </pre>
-          {toolCall.output && !isSuccess && (
-            <div className="mt-2 border-t pt-2">
-              <p className="text-[10px] font-semibold text-destructive mb-1">Error Result:</p>
-              <pre className="max-h-40 overflow-auto whitespace-pre-wrap font-mono text-[10px] text-destructive opacity-80">
-                {JSON.stringify(toolCall.output, null, 2)}
-              </pre>
-            </div>
-          )}
-        </div>
-      )}
+        <span className="mr-1.5 inline-flex size-1.5 rounded-full bg-current/70" />
+        {label}
+        {status === "running" && <span className="ml-1.5 text-[9px] font-medium opacity-70">Running</span>}
+        {status === "done" && <span className="ml-1.5 text-[9px] font-medium opacity-70">Done</span>}
+        {status === "error" && <span className="ml-1.5 text-[9px] font-medium opacity-70">Error</span>}
+      </Badge>
     </div>
   );
 }
@@ -96,6 +87,7 @@ export function ChatPane({ onClose }: ChatPaneProps) {
   }, [threadId, setThreadId]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   // Combine mock messages with real Tambo thread messages
   const orderedMessages = useMemo<ChatMessage[]>(() => {
@@ -107,109 +99,95 @@ export function ChatPane({ onClose }: ChatPaneProps) {
       },
     ];
 
-    // 1st Pass: Collect all identifiable tool results
-    const toolResults = new Map<string, any>();
-    const orphanResults: any[] = [];
+    // Convert Tambo thread messages into ChatMessage format
+    const tamboMessages: ChatMessage[] = thread?.messages
+      ?.filter((msg: TamboThreadMessage) => msg.role !== "system" && !msg.parentMessageId)
+      .map((msg: TamboThreadMessage) => {
+        // --- Extract text content ---
+        let contentString = "";
+        if (msg.role === "tool") {
+          contentString = "";
+        } else if (typeof msg.content === "string") {
+          contentString = msg.content;
+        } else if (Array.isArray(msg.content)) {
+          contentString = msg.content
+            .filter((part: any) => part?.type === "text" && part.text)
+            .map((part: any) => part.text)
+            .join("");
+        }
 
-    thread?.messages?.forEach(msg => {
-      // Handle array content (Anthropic-like or complex parts)
-      if (Array.isArray(msg.content)) {
-        msg.content.forEach((part: any) => {
-          if (part.type === "tool_result") {
-            toolResults.set(part.tool_use_id || part.tool_call_id, part.content);
-          } else if (part.tool_result) {
-            const tr = part.tool_result;
-            toolResults.set(tr.tool_use_id || tr.tool_call_id, tr.content);
-          } else if (part.type === "tool_output") {
-            toolResults.set(part.tool_call_id, part.content);
-          }
-        });
-      }
-      // Handle stringified JSON (Tambo fallback)
-      else if (typeof msg.content === "string") {
-        const trimmed = (msg.content as string).trim().replace(/^```json\n?|\n?```$/g, "");
-        try {
-          const parsed = JSON.parse(trimmed);
-          if (parsed && typeof parsed === "object" && ("success" in parsed || "eventId" in parsed || "events" in parsed)) {
-            orphanResults.push(parsed);
-          }
-        } catch (e) { }
-      }
-    });
+        // --- Extract tool calls ---
+        const toolCalls: any[] = [];
 
-    // 2nd Pass: Process messages and pair tool calls
-    let orphanIdx = 0;
-    const tamboMessages: ChatMessage[] = thread?.messages?.map(msg => {
-      let contentString = "";
-      const toolCalls: any[] = [];
+        // OpenAI-style top-level tool_calls
+        if ((msg as any).tool_calls) {
+          (msg as any).tool_calls.forEach((tc: any) => {
+            const id = tc.id;
+            const name = tc.function?.name || tc.name || "Tool";
+            let input = tc.input || tc.function?.arguments || {};
+            try {
+              if (typeof input === "string") input = JSON.parse(input);
+            } catch { /* keep as string */ }
 
-      // Extract tool calls from OpenAI-like top-level property
-      if ((msg as any).tool_calls) {
-        (msg as any).tool_calls.forEach((tc: any) => {
-          const id = tc.id;
-          const name = tc.function?.name || tc.name || "Tool";
-          let input = tc.input || tc.function?.arguments || {};
-          try {
-            if (typeof input === "string") input = JSON.parse(input);
-          } catch (e) { }
-
-          toolCalls.push({
-            id,
-            name,
-            input,
-            output: toolResults.get(id) || (orphanIdx < orphanResults.length ? orphanResults[orphanIdx++] : undefined)
+            toolCalls.push({ id, name, input, output: undefined });
           });
-        });
-      }
+        }
 
-      if (typeof msg.content === "string") {
-        contentString = msg.content;
-      } else if (Array.isArray(msg.content)) {
-        msg.content.forEach((part: any) => {
-          if (part.type === "text") contentString += part.text;
-          else if (part.text && typeof part.text === "string") contentString += part.text;
+        // Also check toolCallRequest from Tambo
+        const toolCallReq = (msg.toolCallRequest ?? msg.component?.toolCallRequest) as any;
+        if (toolCallReq && toolCalls.length === 0) {
+          toolCalls.push({
+            id: toolCallReq.id,
+            name: toolCallReq.function?.name ?? "Tool",
+            input: toolCallReq.function?.arguments ?? {},
+            output: undefined,
+          });
+        }
 
-          if (part.type === "tool_use") {
-            const output = toolResults.get(part.id) || (orphanIdx < orphanResults.length ? orphanResults[orphanIdx++] : undefined);
-            toolCalls.push({ ...part, output });
-          } else if (part.tool_use) {
-            const tu = part.tool_use;
-            const output = toolResults.get(tu.id) || (orphanIdx < orphanResults.length ? orphanResults[orphanIdx++] : undefined);
-            toolCalls.push({ ...tu, output });
+        // Pair tool results from subsequent messages
+        if (toolCalls.length > 0) {
+          const allMsgs = thread?.messages ?? [];
+          const thisIdx = allMsgs.indexOf(msg);
+          for (let i = thisIdx + 1; i < allMsgs.length; i++) {
+            const nextMsg = allMsgs[i];
+            if (nextMsg.role === "tool" || (nextMsg as any).role === "tool") {
+              const toolCallId = (nextMsg as any).tool_call_id;
+              const matched = toolCalls.find(tc => tc.id === toolCallId);
+              if (matched && !matched.output) {
+                try {
+                  const parsed = typeof nextMsg.content === "string"
+                    ? JSON.parse(nextMsg.content)
+                    : nextMsg.content;
+                  matched.output = parsed;
+                } catch {
+                  matched.output = nextMsg.content;
+                }
+              }
+            }
+            // Stop when we hit the next non-tool message
+            if (nextMsg.role !== "tool") break;
           }
-        });
-      }
+        }
 
-      return {
-        id: msg.id,
-        role: msg.role as "user" | "assistant",
-        content: contentString.trim(),
-        toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-      };
-    }).filter(msg => {
-      // NEVER hide a message that has tool calls
-      if (msg.toolCalls && msg.toolCalls.length > 0) return true;
+        return {
+          id: msg.id,
+          role: msg.role as "user" | "assistant",
+          content: contentString.trim(),
+          toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+          renderedComponent: msg.renderedComponent,
+        };
+      })
+      .filter((msg: ChatMessage) => {
+        // Always keep messages that have tool calls or rendered components
+        if (msg.toolCalls && msg.toolCalls.length > 0) return true;
+        if (msg.renderedComponent) return true;
 
-      // Hide assistant messages if they are completely empty
-      if (msg.role === "assistant" && msg.content === "" && !msg.toolCalls) return false;
+        // Hide empty assistant messages
+        if (msg.role === "assistant" && !msg.content) return false;
 
-      // Hide messages that are just raw JSON tool results
-      // TODO: this breaks the get events tool result
-      // if (typeof msg.content === "string") {
-      //   const trimmed = msg.content.trim().replace(/^```json\n?|\n?```$/g, "");
-      //   try {
-      //     const parsed = JSON.parse(trimmed);
-      //     if (parsed && typeof parsed === "object" && ("success" in parsed || "eventId" in parsed || "events" in parsed)) {
-      //       return false;
-      //     }
-      //   } catch (e) { }
-      // }
-
-      // For user/system/tool, only show if they have non-empty text content
-      const contentStr = typeof msg.content === "string" ? msg.content : "";
-      const role = msg.role || (msg as any).role;
-      return role === "assistant" || contentStr.trim() !== "" || (msg.toolCalls && msg.toolCalls.length > 0);
-    }) || [];
+        // Hide tool-role messages (already paired above)
+        return msg.content.trim() !== "" || msg.role === "user";
+      }) || [];
 
     return [...mockMessages, ...tamboMessages];
   }, [thread?.messages]);
@@ -308,7 +286,10 @@ export function ChatPane({ onClose }: ChatPaneProps) {
   }, [orderedMessages, history, checkpoints, setCheckpoints]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+    }
   }, [orderedMessages, isPending]);
 
   const handleSubmit = async (event?: React.FormEvent) => {
@@ -320,7 +301,7 @@ export function ChatPane({ onClose }: ChatPaneProps) {
   };
 
   return (
-    <Card className="flex h-full flex-col border-l-0 border-t-0 rounded-none bg-card/80 shadow-none">
+    <Card className="flex h-full flex-col border-l-0 border-t-0 rounded-none bg-card/80 shadow-none min-w-0 overflow-hidden">
       <div className="flex items-center justify-between border-b px-4 py-3">
         <div className="flex items-center gap-2">
           <Button
@@ -402,14 +383,14 @@ export function ChatPane({ onClose }: ChatPaneProps) {
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col gap-3 p-3 overflow-hidden">
-        <div className="flex-1 overflow-hidden rounded-md border bg-background/80">
-          <div className="h-full overflow-y-auto p-3 scroll-smooth">
+      <div className="flex flex-1 flex-col gap-3 p-3 overflow-hidden min-h-0">
+        <div className="flex-1 overflow-hidden rounded-md border bg-background/80 min-h-0">
+          <div ref={messagesContainerRef} className="h-full overflow-y-auto p-3 scroll-smooth">
             <div className="space-y-4 text-sm leading-relaxed">
               {orderedMessages.map((msg, idx) => (
                 <div
                   key={msg.id || idx}
-                  className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                  className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}
                 >
                   <div
                     className={`max-w-[85%] rounded-2xl px-4 py-2.5 shadow-sm transition-all hover:shadow-md ${msg.role === "user"
@@ -459,6 +440,13 @@ export function ChatPane({ onClose }: ChatPaneProps) {
                       </div>
                     )}
                   </div>
+
+                  {/* Tambo generative UI component — rendered below the message bubble */}
+                  {msg.role === "assistant" && msg.renderedComponent && (
+                    <div className="w-full mt-2 min-w-0 overflow-x-hidden">
+                      {msg.renderedComponent}
+                    </div>
+                  )}
                 </div>
               ))}
 

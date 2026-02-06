@@ -13,6 +13,14 @@ export interface CalendarEventMeta {
   source: "user" | "ai" | "system";
 }
 
+export interface RecurrenceRule {
+  frequency: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+  endDate?: string; // ISO - until when to recur
+  count?: number; // number of occurrences
+  interval?: number; // e.g., every 2 weeks (default 1)
+  byDay?: string[]; // e.g., ["MO", "WE", "FR"] for weekly
+}
+
 export interface CalendarEvent {
   id: string;
   title: string;
@@ -22,6 +30,9 @@ export interface CalendarEvent {
   color: EventColor;
   meta?: CalendarEventMeta;
   googleEventId?: string;
+  recurrence?: RecurrenceRule; // For recurring events
+  recurringEventId?: string; // Parent recurring event ID (for instances)
+  isInstance?: boolean; // True if this is an instance of a recurring event
 }
 
 export type NewEventDraft = {

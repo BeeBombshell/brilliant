@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { startOfMonth, addDays, parseISO, format, isToday, startOfWeek, startOfDay, endOfDay } from "date-fns";
 import { useAtom } from "jotai";
 
-import { selectedDateAtom, eventsAtom } from "@/state/calendarAtoms";
+import { selectedDateAtom, expandedEventsAtom } from "@/state/calendarAtoms";
 import { MultiDayEventBadge } from "@/components/calendar/MultiDayEventBadge";
 import { calculateMonthEventSlots, getMultiDayPosition } from "@/lib/eventLayoutUtils";
 import { cn } from "@/lib/utils";
@@ -12,7 +12,7 @@ const WEEK_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export function CalendarMonthView() {
   const [selectedDate] = useAtom(selectedDateAtom);
-  const [events] = useAtom(eventsAtom);
+  const [events] = useAtom(expandedEventsAtom);
   const { changeView, changeDate, setSelectedEventId } = useCalendarActions();
 
   const monthStart = startOfMonth(selectedDate);

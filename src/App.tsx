@@ -3,12 +3,12 @@ import { useAtom } from "jotai";
 import { TamboProvider } from "@tambo-ai/react";
 
 import { eventsAtom } from "@/state/calendarAtoms";
-import { tamboComponents, tamboTools } from './lib/tambo-config';
+import { tamboTools } from "./lib/tambo/tools";
+import { tamboComponents } from "./lib/tambo";
 import { GoogleAuthProvider, useGoogleAuth } from "@/contexts/GoogleAuthContext";
 import { GoogleCalendarSync } from "@/components/calendar/GoogleCalendarSync";
 import { GoogleLoginScreen } from "@/components/auth/GoogleLoginScreen";
 import Home from "./pages/Home";
-
 
 
 function AppContent() {

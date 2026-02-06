@@ -77,7 +77,7 @@ function ToolCallBox({ toolCall }: { toolCall: any }) {
 export function ChatPane({ onClose }: ChatPaneProps) {
   const [actionLog] = useAtom(actionLogAtom);
 
-  const [threadId, setThreadId] = useAtom(chatThreadIdAtom);
+  const [threadId] = useAtom(chatThreadIdAtom);
   const [threadsHistory, setThreadsHistory] = useAtom(threadsHistoryAtom);
   const [showHistory, setShowHistory] = useState(false);
 

@@ -4,7 +4,7 @@ import type { CalendarEvent } from "@/types/calendar";
 
 interface HappeningNowSidebarProps {
   events: CalendarEvent[];
-  onEventClick: (event: CalendarEvent) => void;
+  onEventClick: (eventId: string) => void;
 }
 
 const colorClasses: Record<string, string> = {
@@ -73,7 +73,7 @@ export function HappeningNowSidebar({ events, onEventClick }: HappeningNowSideba
               return (
                 <button
                   key={event.id}
-                  onClick={() => onEventClick(event)}
+                  onClick={() => onEventClick(event.id)}
                   className="w-full space-y-2 rounded-lg border bg-card p-3 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <div className="flex items-start gap-2">
@@ -118,7 +118,7 @@ export function HappeningNowSidebar({ events, onEventClick }: HappeningNowSideba
               return (
                 <button
                   key={event.id}
-                  onClick={() => onEventClick(event)}
+                  onClick={() => onEventClick(event.id)}
                   className="w-full space-y-1 rounded-md border bg-card p-2.5 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <div className="flex items-start gap-2">

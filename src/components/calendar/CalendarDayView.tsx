@@ -4,12 +4,11 @@ import { useAtom } from "jotai";
 
 import { selectedDateAtom, eventsAtom, newEventDraftAtom } from "@/state/calendarAtoms";
 import { CurrentTimeIndicator } from "@/components/calendar/CurrentTimeIndicator";
-import { EventDetailsDialog } from "@/components/calendar/EventDetailsDialog";
+import { useCalendarActions } from "@/hooks/useCalendarActions";
 import { HappeningNowSidebar } from "@/components/calendar/HappeningNowSidebar";
 import { EventCard } from "@/components/calendar/EventCard";
 import { isMultiDayEvent, groupOverlappingEvents, getEventBlockStyle, getMultiDayPosition } from "@/lib/eventLayoutUtils";
 import { MultiDayEventBadge } from "@/components/calendar/MultiDayEventBadge";
-import type { CalendarEvent } from "@/types/calendar";
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const minutesInDay = 24 * 60;
@@ -23,7 +22,7 @@ export function CalendarDayView() {
   const [dragStartY, setDragStartY] = useState<number | null>(null);
   const [dragCurrentY, setDragCurrentY] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const { setSelectedEventId } = useCalendarActions();
 
   const dayStart = new Date(
     selectedDate.getFullYear(),
@@ -141,11 +140,6 @@ export function CalendarDayView() {
 
   return (
     <>
-      <EventDetailsDialog
-        event={selectedEvent}
-        open={!!selectedEvent}
-        onClose={() => setSelectedEvent(null)}
-      />
       <div className="flex h-full overflow-hidden bg-background">
         <div ref={scrollContainerRef} className="flex flex-1 flex-col overflow-auto">
           {/* Multi-day events row */}
@@ -158,7 +152,7 @@ export function CalendarDayView() {
                     key={event.id}
                     event={event}
                     position={getMultiDayPosition(event, selectedDate)}
-                    onClick={() => setSelectedEvent(event)}
+                    onClick={() => setSelectedEventId(event.id)}
                   />
                 ))}
               </div>
@@ -232,7 +226,7 @@ export function CalendarDayView() {
                       key={event.id}
                       event={event}
                       durationMinutes={durationMinutes}
-                      onClick={() => setSelectedEvent(event)}
+                      onClick={() => setSelectedEventId(event.id)}
                       onPointerDown={(e) => e.stopPropagation()}
                       style={{
                         top: blockStyle.top,
@@ -249,7 +243,7 @@ export function CalendarDayView() {
           </div>
         </div>
 
-        <HappeningNowSidebar events={events} onEventClick={setSelectedEvent} />
+        <HappeningNowSidebar events={events} onEventClick={(id) => setSelectedEventId(id)} />
       </div>
     </>
   );

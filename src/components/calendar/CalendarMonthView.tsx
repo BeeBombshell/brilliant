@@ -1,12 +1,10 @@
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { startOfMonth, addDays, parseISO, format, isToday, startOfWeek, startOfDay, endOfDay } from "date-fns";
 import { useAtom } from "jotai";
 
 import { selectedDateAtom, eventsAtom } from "@/state/calendarAtoms";
-import { EventDetailsDialog } from "@/components/calendar/EventDetailsDialog";
 import { MultiDayEventBadge } from "@/components/calendar/MultiDayEventBadge";
 import { calculateMonthEventSlots, getMultiDayPosition } from "@/lib/eventLayoutUtils";
-import type { CalendarEvent } from "@/types/calendar";
 import { cn } from "@/lib/utils";
 import { useCalendarActions } from "@/hooks/useCalendarActions";
 
@@ -15,8 +13,7 @@ const WEEK_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 export function CalendarMonthView() {
   const [selectedDate] = useAtom(selectedDateAtom);
   const [events] = useAtom(eventsAtom);
-  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
-  const { changeView, changeDate } = useCalendarActions();
+  const { changeView, changeDate, setSelectedEventId } = useCalendarActions();
 
   const monthStart = startOfMonth(selectedDate);
   // const monthEnd = endOfMonth(selectedDate);
@@ -55,11 +52,6 @@ export function CalendarMonthView() {
 
   return (
     <>
-      <EventDetailsDialog
-        event={selectedEvent}
-        open={!!selectedEvent}
-        onClose={() => setSelectedEvent(null)}
-      />
       <div className="h-full">
         {/* Week day headers */}
         <div className="grid grid-cols-7 divide-x border-b">
@@ -111,7 +103,7 @@ export function CalendarMonthView() {
                       key={`${event.id}-${dayKey}`}
                       event={event}
                       position={event.position}
-                      onClick={() => setSelectedEvent(event)}
+                      onClick={() => setSelectedEventId(event.id)}
                       className="text-[0.7rem]"
                     />
                   ))}

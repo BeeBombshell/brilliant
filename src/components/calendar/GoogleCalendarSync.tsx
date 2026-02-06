@@ -132,7 +132,7 @@ export function GoogleCalendarSync() {
                 }));
 
                 setEvents(prev => prev.map(e =>
-                    e.id === event.id ? { ...e, googleEventId: response.result.id, meta: { ...e.meta, source: "system" } as any } : e
+                    e.id === event.id ? { ...e, googleEventId: response.result.id } : e
                 ));
                 console.log("Successfully created Google event", response.result.id);
             } catch (err) {

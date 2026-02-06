@@ -17,6 +17,9 @@ dependencies:
   '@hugeicons/react':
     specifier: ^1.1.4
     version: 1.1.4(react@19.2.0)
+  '@tabler/icons-react':
+    specifier: ^3.36.1
+    version: 3.36.1(react@19.2.0)
   '@tailwindcss/vite':
     specifier: ^4.1.17
     version: 4.1.17(vite@7.2.4)
@@ -2597,6 +2600,19 @@ packages:
 
   /@standard-schema/spec@1.1.0:
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
+    dev: false
+
+  /@tabler/icons-react@3.36.1(react@19.2.0):
+    resolution: {integrity: sha512-/8nOXeNeMoze9xY/QyEKG65wuvRhkT3q9aytaur6Gj8bYU2A98YVJyLc9MRmc5nVvpy+bRlrrwK/Ykr8WGyUWg==}
+    peerDependencies:
+      react: '>= 16'
+    dependencies:
+      '@tabler/icons': 3.36.1
+      react: 19.2.0
+    dev: false
+
+  /@tabler/icons@3.36.1:
+    resolution: {integrity: sha512-f4Jg3Fof/Vru5ioix/UO4GX+sdDsF9wQo47FbtvG+utIYYVQ/QVAC0QYgcBbAjQGfbdOh2CCf0BgiFOF9Ixtjw==}
     dev: false
 
   /@tailwindcss/node@4.1.17:

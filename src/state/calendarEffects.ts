@@ -20,3 +20,12 @@ export const executeCalendarActionAtom = atom(
     setTimeout(() => set(calendarActionEffectAtom, null), 0);
   }
 );
+
+// Write-only atom that only emits effects (no history changes)
+export const emitCalendarActionEffectAtom = atom(
+  null,
+  (_get, set, action: CalendarAction) => {
+    set(calendarActionEffectAtom, action);
+    setTimeout(() => set(calendarActionEffectAtom, null), 0);
+  }
+);

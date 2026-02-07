@@ -11,7 +11,7 @@ import {
   viewAtom,
 } from "@/state/calendarAtoms";
 import type { CalendarAction, CalendarEvent, CalendarView } from "@/types/calendar";
-import { executeCalendarActionAtom } from "@/state/calendarEffects";
+import { executeCalendarActionAtom, emitCalendarActionEffectAtom } from "@/state/calendarEffects";
 
 const nowIso = () => new Date().toISOString();
 
@@ -23,6 +23,7 @@ export function useCalendarActions() {
   const [selectedDate, setSelectedDate] = useAtom(selectedDateAtom);
   const [view, setView] = useAtom(viewAtom);
   const [, executeAction] = useAtom(executeCalendarActionAtom);
+  const [, emitEffect] = useAtom(emitCalendarActionEffectAtom);
 
   const commitAction = useCallback(
     (action: CalendarAction) => {
@@ -122,6 +123,41 @@ export function useCalendarActions() {
       if (prevHistory.length === 0) return prevHistory;
       const last = prevHistory[prevHistory.length - 1];
 
+      const inverseAction: CalendarAction = (() => {
+        switch (last.type) {
+          case "ADD_EVENT":
+            return {
+              id: uuid(),
+              type: "DELETE_EVENT",
+              timestamp: nowIso(),
+              source: "user",
+              explanation: "Undo: remove created event",
+              payload: { event: last.payload.event },
+            };
+          case "DELETE_EVENT":
+            return {
+              id: uuid(),
+              type: "ADD_EVENT",
+              timestamp: nowIso(),
+              source: "user",
+              explanation: "Undo: restore deleted event",
+              payload: { event: last.payload.event },
+            };
+          case "UPDATE_EVENT":
+          case "MOVE_EVENT":
+            return {
+              id: uuid(),
+              type: "UPDATE_EVENT",
+              timestamp: nowIso(),
+              source: "user",
+              explanation: "Undo: revert event changes",
+              payload: { before: last.payload.after, after: last.payload.before },
+            };
+          default:
+            return last;
+        }
+      })();
+
       setEvents(prevEvents => {
         switch (last.type) {
           case "ADD_EVENT":
@@ -140,9 +176,11 @@ export function useCalendarActions() {
 
       setRedoStack(prevRedo => [...prevRedo, last]);
 
+      emitEffect(inverseAction);
+
       return prevHistory.slice(0, -1);
     });
-  }, [setEvents, setHistory, setRedoStack]);
+  }, [emitEffect, setEvents, setHistory, setRedoStack]);
 
   const redo = useCallback(() => {
     setRedoStack(prevRedo => {
@@ -167,9 +205,17 @@ export function useCalendarActions() {
 
       setHistory(prevHistory => [...prevHistory, last]);
 
+      emitEffect({
+        ...last,
+        id: uuid(),
+        timestamp: nowIso(),
+        source: "user",
+        explanation: "Redo: reapply event change",
+      });
+
       return prevRedo.slice(0, -1);
     });
-  }, [setEvents, setHistory, setRedoStack]);
+  }, [emitEffect, setEvents, setHistory, setRedoStack]);
 
   const changeView = useCallback(
     (nextView: CalendarView) => {

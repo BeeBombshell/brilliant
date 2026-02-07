@@ -20,6 +20,7 @@ import { dateTimeHelpers, eventColorConfig } from "@/lib/calendarUtils";
 import { useEventForm } from "@/hooks/useEventForm";
 import type { EventColor, RecurrenceRule } from "@/types/calendar";
 import { useGoogleAuth } from "@/contexts/GoogleAuthContext";
+import { IconClock, IconEdit, IconFileText, IconPalette, IconRepeat } from "@tabler/icons-react";
 
 export function NewEventDialog() {
   const [draft, setDraft] = useAtom(newEventDraftAtom);
@@ -117,9 +118,7 @@ export function NewEventDialog() {
         <div className="space-y-5 py-4">
           <div className="space-y-2.5">
             <label className="text-sm font-medium flex items-center gap-2">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M4 7V4h16v3M9 20h6M12 4v16" />
-              </svg>
+              <IconEdit size={16} />
               Event Title
             </label>
             <Input
@@ -139,10 +138,7 @@ export function NewEventDialog() {
           </div>
           <div className="space-y-2.5">
             <label className="text-sm font-medium flex items-center gap-2">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-                <polyline points="14 2 14 8 20 8" />
-              </svg>
+              <IconFileText size={16} />
               Description
               <span className="text-xs text-muted-foreground font-normal">(Optional)</span>
             </label>
@@ -157,10 +153,7 @@ export function NewEventDialog() {
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <label className="text-sm font-medium flex items-center gap-2">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10" />
-                  <polyline points="12 6 12 12 16 14" />
-                </svg>
+                <IconClock size={16} />
                 Date & Time
               </label>
               <div className="flex gap-1">
@@ -216,12 +209,7 @@ export function NewEventDialog() {
           </div>
           <div className="space-y-2.5">
             <label className="text-sm font-medium flex items-center gap-2">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M17 2.1l4 4-4 4" />
-                <path d="M3 12.2v-2a4 4 0 0 1 4-4h12.8" />
-                <path d="M7 21.9l-4-4 4-4" />
-                <path d="M21 11.8v2a4 4 0 0 1-4 4H4.2" />
-              </svg>
+              <IconRepeat size={16} />
               Repeat
             </label>
             <div className="flex items-center gap-3">
@@ -278,10 +266,7 @@ export function NewEventDialog() {
           </div>
           <div className="space-y-2.5">
             <label className="text-sm font-medium flex items-center gap-2">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10" />
-                <path d="M12 8v4l3 3" />
-              </svg>
+              <IconPalette size={16} />
               Event Color
             </label>
             <Select value={form.color} onValueChange={value => form.setColor(value as EventColor)}>

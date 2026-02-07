@@ -4,6 +4,7 @@ import remarkGfm from "remark-gfm";
 
 import { Button } from "@/components/ui/button";
 import { ToolCallBox } from "@/components/chat/ToolCallBox";
+import { IconRotateClockwise, IconSparkles } from "@tabler/icons-react";
 
 export interface ChatMessage {
   id: string;
@@ -22,8 +23,8 @@ interface ChatMessagesProps {
   onRevert: (messageId: string) => void;
   onRetryToolCall: (toolCall: any) => void;
   retryingToolId: string | null;
-  messagesContainerRef: RefObject<HTMLDivElement>;
-  messagesEndRef: RefObject<HTMLDivElement>;
+  messagesContainerRef: RefObject<HTMLDivElement | null>;
+  messagesEndRef: RefObject<HTMLDivElement | null>;
 }
 
 export function ChatMessages({
@@ -63,13 +64,7 @@ export function ChatMessages({
                 {msg.toolCalls && (
                   <div className="mt-2 space-y-2">
                     <div className="text-[10px] font-semibold text-muted-foreground uppercase flex items-center gap-1.5 px-1">
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.7-3.7a1 1 0 0 0 0-1.4l-1.6-1.6a1 1 0 0 0-1.4 0z" />
-                        <path d="m20 10 2 2" />
-                        <path d="m10 20 2 2" />
-                        <path d="m3 3 7 7" />
-                        <path d="m14 14 7 7" />
-                      </svg>
+                      <IconSparkles size={10} />
                       AI Actions
                     </div>
                     {msg.toolCalls.map((tc, i) => (
@@ -95,10 +90,7 @@ export function ChatMessages({
                       }`}
                       onClick={() => onRevert(msg.id)}
                     >
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-                        <path d="M3 3v5h5" />
-                      </svg>
+                      <IconRotateClockwise size={10} />
                       Revert to here
                     </Button>
                   </div>

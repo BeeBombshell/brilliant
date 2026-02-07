@@ -4,6 +4,7 @@ import { ChatPane } from "@/components/chat/ChatPane";
 import { CalendarRoot } from "@/components/calendar/CalendarRoot";
 import { Button } from "@/components/ui/button";
 import { chatThreadIdAtom } from "@/state/calendarAtoms";
+import { IconMessageCircle } from "@tabler/icons-react";
 
 export default function Home() {
   const [showChat, setShowChat] = useState(false);
@@ -32,9 +33,7 @@ export default function Home() {
           className="fixed bottom-6 right-6 z-50 size-14 rounded-full shadow-2xl md:hidden"
           size="icon"
         >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-          </svg>
+          <IconMessageCircle size={24} />
         </Button>
       )}
 

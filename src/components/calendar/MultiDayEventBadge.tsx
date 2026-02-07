@@ -1,6 +1,7 @@
 import { format, parseISO } from "date-fns";
 import type { CalendarEvent, MultiDayPosition } from "@/types/calendar";
 import { cn } from "@/lib/utils";
+import { IconCircleFilled } from "@tabler/icons-react";
 
 interface MultiDayEventBadgeProps {
   event: CalendarEvent;
@@ -27,13 +28,13 @@ const colorStyles: Record<string, string> = {
 };
 
 const dotColorClasses: Record<string, string> = {
-  blue: "fill-blue-600",
-  green: "fill-emerald-600",
-  red: "fill-rose-600",
-  yellow: "fill-amber-600",
-  purple: "fill-violet-600",
-  orange: "fill-orange-600",
-  gray: "fill-slate-600",
+  blue: "text-blue-600",
+  green: "text-emerald-600",
+  red: "text-rose-600",
+  yellow: "text-amber-600",
+  purple: "text-violet-600",
+  orange: "text-orange-600",
+  gray: "text-slate-600",
 };
 
 export function MultiDayEventBadge({
@@ -57,14 +58,10 @@ export function MultiDayEventBadge({
     >
       <div className="flex items-center gap-1.5 truncate">
         {showTitle && (
-          <svg
-            width="8"
-            height="8"
-            viewBox="0 0 8 8"
+          <IconCircleFilled
+            size={8}
             className={cn("shrink-0", dotColorClasses[event.color] || dotColorClasses.gray)}
-          >
-            <circle cx="4" cy="4" r="4" />
-          </svg>
+          />
         )}
         {showTitle && <span className="truncate font-semibold">{event.title}</span>}
       </div>

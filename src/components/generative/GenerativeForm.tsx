@@ -3,6 +3,7 @@ import { z } from "zod";
 import { useTamboComponentState, useTamboCurrentMessage, useTamboThread } from "@tambo-ai/react";
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { IconLoader2 } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -619,9 +620,7 @@ export function GenerativeForm({
                     <Button type="submit" className="w-full sm:w-auto" disabled={submitting || queued}>
                         {submitting ? (
                             <span className="flex items-center gap-2">
-                                <svg className="size-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" strokeLinecap="round" />
-                                </svg>
+                                <IconLoader2 className="size-4 animate-spin" />
                                 Submitting…
                             </span>
                         ) : queued ? (

@@ -19,6 +19,16 @@ import { useEventForm } from "@/hooks/useEventForm";
 import type { EventColor } from "@/types/calendar";
 import { useAtom } from "jotai";
 import { selectedEventIdAtom, eventsAtom } from "@/state/calendarAtoms";
+import {
+  IconClock,
+  IconEdit,
+  IconFileText,
+  IconLink,
+  IconMapPin,
+  IconPalette,
+  IconRepeat,
+  IconUsers,
+} from "@tabler/icons-react";
 
 interface EventDetailsDialogProps {
   onClose?: () => void;
@@ -113,9 +123,7 @@ export function EventDetailsDialog({ onClose }: EventDetailsDialogProps = {}) {
             <div className="space-y-5 py-4">
               <div className="space-y-2.5">
                 <label className="text-sm font-medium flex items-center gap-2">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M4 7V4h16v3M9 20h6M12 4v16" />
-                  </svg>
+                  <IconEdit size={16} />
                   Event Title
                 </label>
                 <Input
@@ -135,10 +143,7 @@ export function EventDetailsDialog({ onClose }: EventDetailsDialogProps = {}) {
               </div>
               <div className="space-y-2.5">
                 <label className="text-sm font-medium flex items-center gap-2">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-                    <polyline points="14 2 14 8 20 8" />
-                  </svg>
+                  <IconFileText size={16} />
                   Description
                   <span className="text-xs text-muted-foreground font-normal">(Optional)</span>
                 </label>
@@ -153,10 +158,7 @@ export function EventDetailsDialog({ onClose }: EventDetailsDialogProps = {}) {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2.5">
                   <label className="text-sm font-medium flex items-center gap-2">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <circle cx="12" cy="12" r="10" />
-                      <polyline points="12 6 12 12 16 14" />
-                    </svg>
+                    <IconClock size={16} />
                     Start
                   </label>
                   <Input
@@ -168,10 +170,7 @@ export function EventDetailsDialog({ onClose }: EventDetailsDialogProps = {}) {
                 </div>
                 <div className="space-y-2.5">
                   <label className="text-sm font-medium flex items-center gap-2">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <circle cx="12" cy="12" r="10" />
-                      <polyline points="12 6 12 12 16 14" />
-                    </svg>
+                    <IconClock size={16} />
                     End
                   </label>
                   <Input
@@ -184,10 +183,7 @@ export function EventDetailsDialog({ onClose }: EventDetailsDialogProps = {}) {
               </div>
               <div className="space-y-2.5">
                 <label className="text-sm font-medium flex items-center gap-2">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="10" />
-                    <path d="M12 8v4l3 3" />
-                  </svg>
+                  <IconPalette size={16} />
                   Event Color
                 </label>
                 <Select value={form.color} onValueChange={value => form.setColor(value as EventColor)}>
@@ -213,18 +209,7 @@ export function EventDetailsDialog({ onClose }: EventDetailsDialogProps = {}) {
               {/* Time Information */}
               <div className="space-y-2">
                 <div className="flex items-start gap-3">
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    className="mt-0.5 text-muted-foreground"
-                  >
-                    <circle cx="12" cy="12" r="10" />
-                    <polyline points="12 6 12 12 16 14" />
-                  </svg>
+                  <IconClock size={20} className="mt-0.5 text-muted-foreground" />
                   <div className="flex-1 space-y-1">
                     <div className="flex items-baseline gap-2">
                       <span className="text-sm font-medium">Start:</span>
@@ -243,21 +228,7 @@ export function EventDetailsDialog({ onClose }: EventDetailsDialogProps = {}) {
               {event.description && (
                 <div className="space-y-2">
                   <div className="flex items-start gap-3">
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      className="mt-0.5 text-muted-foreground"
-                    >
-                      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-                      <polyline points="14 2 14 8 20 8" />
-                      <line x1="16" x2="8" y1="13" y2="13" />
-                      <line x1="16" x2="8" y1="17" y2="17" />
-                      <line x1="10" x2="8" y1="9" y2="9" />
-                    </svg>
+                    <IconFileText size={20} className="mt-0.5 text-muted-foreground" />
                     <div className="flex-1">
                       <p className="text-sm font-medium mb-1">Description</p>
                       <p className="text-sm text-muted-foreground leading-relaxed">
@@ -271,19 +242,11 @@ export function EventDetailsDialog({ onClose }: EventDetailsDialogProps = {}) {
               {(event.meetingLink || event.location) && (
                 <div className="space-y-2">
                   <div className="flex items-start gap-3">
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      className="mt-0.5 text-muted-foreground"
-                    >
-                      <path d="M10 13a5 5 0 0 1 7 0l1 1" />
-                      <path d="M5 11a9 9 0 0 1 14 0" />
-                      <circle cx="12" cy="18" r="1" />
-                    </svg>
+                    {event.meetingLink ? (
+                      <IconLink size={20} className="mt-0.5 text-muted-foreground" />
+                    ) : (
+                      <IconMapPin size={20} className="mt-0.5 text-muted-foreground" />
+                    )}
                     <div className="flex-1">
                       <p className="text-sm font-medium mb-1">
                         {event.meetingLink ? "Meeting Link" : "Location"}
@@ -316,18 +279,7 @@ export function EventDetailsDialog({ onClose }: EventDetailsDialogProps = {}) {
               {(event.organizer || event.creator || (event.attendees && event.attendees.length > 0)) && (
                 <div className="space-y-3">
                   <div className="flex items-start gap-3">
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      className="mt-0.5 text-muted-foreground"
-                    >
-                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                      <circle cx="12" cy="7" r="4" />
-                    </svg>
+                    <IconUsers size={20} className="mt-0.5 text-muted-foreground" />
                     <div className="flex-1 space-y-3">
                       {(event.organizer || event.creator) && (
                         <div>
@@ -368,7 +320,9 @@ export function EventDetailsDialog({ onClose }: EventDetailsDialogProps = {}) {
                   </Badge>
                   {(event.recurrence || event.isInstance) && (
                     <Badge variant="secondary" className="text-xs">
-                      🔁 {(() => {
+                      <span className="inline-flex items-center gap-1">
+                        <IconRepeat size={12} />
+                        {(() => {
                         const rule = event.recurrence;
                         if (!rule && event.isInstance) return "Recurring instance";
                         if (!rule) return "";
@@ -380,6 +334,7 @@ export function EventDetailsDialog({ onClose }: EventDetailsDialogProps = {}) {
                         if (rule.endDate) parts.push(`until ${format(parseISO(rule.endDate), "MMM d, yyyy")}`);
                         return parts.join(" ");
                       })()}
+                      </span>
                     </Badge>
                   )}
                 </div>

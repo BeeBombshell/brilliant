@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { parseISO, format, isWithinInterval } from "date-fns";
 import type { CalendarEvent } from "@/types/calendar";
+import { IconClock } from "@tabler/icons-react";
 
 interface HappeningNowSidebarProps {
   events: CalendarEvent[];
@@ -86,10 +87,7 @@ export function HappeningNowSidebar({ events, onEventClick }: HappeningNowSideba
                         </p>
                       )}
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <circle cx="12" cy="12" r="10" />
-                          <polyline points="12 6 12 12 16 14" />
-                        </svg>
+                        <IconClock size={12} />
                         <span>
                           {format(start, "h:mm a")} - {format(end, "h:mm a")}
                         </span>

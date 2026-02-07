@@ -1,5 +1,6 @@
 import type { CalendarEvent, EventColor } from "@/types/calendar";
 import { cn } from "@/lib/utils";
+import { IconCircleFilled } from "@tabler/icons-react";
 
 interface EventCardProps {
   event: CalendarEvent;
@@ -11,13 +12,13 @@ interface EventCardProps {
 }
 
 const dotColorClasses: Record<EventColor, string> = {
-  blue: "fill-sky-600",
-  green: "fill-emerald-600",
-  red: "fill-rose-600",
-  yellow: "fill-amber-600",
-  purple: "fill-violet-600",
-  orange: "fill-orange-600",
-  gray: "fill-slate-600",
+  blue: "text-sky-600",
+  green: "text-emerald-600",
+  red: "text-rose-600",
+  yellow: "text-amber-600",
+  purple: "text-violet-600",
+  orange: "text-orange-600",
+  gray: "text-slate-600",
 };
 
 export function EventCard({
@@ -46,14 +47,10 @@ export function EventCard({
       style={style}
     >
       <div className="flex items-start gap-1.5 mt-2">
-        <svg
-          width="8"
-          height="8"
-          viewBox="0 0 8 8"
+        <IconCircleFilled
+          size={8}
           className={cn("shrink-0", dotColorClasses[event.color])}
-        >
-          <circle cx="4" cy="4" r="4" />
-        </svg>
+        />
         <div className="min-w-0 flex-1">
           <div className="truncate font-semibold leading-tight">{event.title}</div>
           {durationMinutes > 25 && event.description && (

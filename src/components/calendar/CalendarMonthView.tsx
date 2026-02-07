@@ -78,7 +78,7 @@ export function CalendarMonthView() {
               <div
                 key={dayKey}
                 className={cn(
-                  "flex min-h-[110px] flex-col gap-1 border-b border-l py-1.5",
+                  "flex min-h-27.5 flex-col gap-1 border-b border-l py-1.5",
                   isSunday && "border-l-0",
                   !inMonth && "bg-muted/30"
                 )}

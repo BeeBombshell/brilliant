@@ -6,7 +6,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import {
   IconSend,
+  IconMicrophone,
+  IconPlayerStop,
 } from "@tabler/icons-react";
+import { useTamboVoice } from "@tambo-ai/react";
 
 interface MessageBoxProps {
   value: string;
@@ -24,6 +27,17 @@ export function MessageBox({
   disabled = false,
 }: MessageBoxProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const lastTranscriptRef = useRef<string | null>(null);
+  const enableVoiceInput = false;
+  const {
+    startRecording,
+    stopRecording,
+    isRecording,
+    isTranscribing,
+    transcript,
+    transcriptionError,
+    mediaAccessError,
+  } = useTamboVoice();
   const isExpanded = value.length > 100 || value.includes("\n");
 
   const handleSubmit = (event?: React.FormEvent) => {
@@ -53,6 +67,18 @@ export function MessageBox({
     }
 
   }, [value]);
+
+  useEffect(() => {
+    const nextTranscript = transcript?.trim();
+    if (!nextTranscript || disabled) return;
+    if (isRecording || isTranscribing) return;
+    if (lastTranscriptRef.current === nextTranscript) return;
+
+    const trimmedValue = value.trim();
+    const combined = trimmedValue ? `${trimmedValue}\n${nextTranscript}` : nextTranscript;
+    onChange(combined);
+    lastTranscriptRef.current = nextTranscript;
+  }, [transcript, disabled, isRecording, isTranscribing, onChange, value]);
 
   const gridTemplateAreas = isExpanded
     ? '"header" "primary" "footer"'
@@ -98,6 +124,19 @@ export function MessageBox({
           style={{ gridArea: isExpanded ? "footer" : "trailing" }}
         >
           <div className="ms-auto flex items-center gap-1.5">
+            {enableVoiceInput && (
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className={cn("rounded-full", isRecording && "text-destructive")}
+                aria-label={isRecording ? "Stop recording" : "Start recording"}
+                onClick={isRecording ? stopRecording : startRecording}
+                disabled={disabled || isTranscribing}
+              >
+                {isRecording ? <IconPlayerStop className="size-5" /> : <IconMicrophone className="size-5" />}
+              </Button>
+            )}
             <Button
               type="submit"
               size="icon"
@@ -110,6 +149,12 @@ export function MessageBox({
           </div>
         </div>
       </div>
+      {enableVoiceInput && (isTranscribing || transcriptionError || mediaAccessError) && (
+        <div className="px-2 pt-1 text-[10px] text-muted-foreground">
+          {isTranscribing && "Transcribing voice input..."}
+          {!isTranscribing && (transcriptionError || mediaAccessError)}
+        </div>
+      )}
     </form>
   );
 }

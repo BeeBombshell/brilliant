@@ -244,7 +244,7 @@ export function CalendarWeekView() {
               {days.map((day) => (
                 <div
                   key={`header-${day.toISOString()}`}
-                  className="flex h-10 min-w-[140px] flex-1 items-center justify-center border-b border-r bg-background text-xs font-medium last:border-r-0"
+                  className="flex h-10 min-w-35 flex-1 items-center justify-center border-b border-r bg-background text-xs font-medium last:border-r-0"
                 >
                   <span className="text-muted-foreground">{format(day, "EEE")}</span>
                   <span className="ml-1 font-semibold">{format(day, "d")}</span>
@@ -337,7 +337,7 @@ export function CalendarWeekView() {
               return (
                 <div
                   key={day.toISOString()}
-                  className="min-w-[140px] flex-1 border-r last:border-r-0"
+                  className="min-w-35 flex-1 border-r last:border-r-0"
                   data-day-index={index}
                 >
                   {/* Time grid */}

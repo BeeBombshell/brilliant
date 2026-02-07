@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { MessageBox } from "@/components/chat/MessageBox";
 import { actionLogAtom } from "@/state/calendarAtoms";
 
-import { useTamboThread, useTamboThreadInput } from "@tambo-ai/react";
+import { useTamboSuggestions, useTamboThread, useTamboThreadInput } from "@tambo-ai/react";
 import type { TamboThreadMessage } from "@tambo-ai/react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -27,7 +27,15 @@ interface ChatPaneProps {
   onClose?: () => void;
 }
 
-function ToolCallBox({ toolCall }: { toolCall: any }) {
+function ToolCallBox({
+  toolCall,
+  onRetry,
+  isRetrying,
+}: {
+  toolCall: any;
+  onRetry?: (toolCall: any) => void;
+  isRetrying?: boolean;
+}) {
   const isSuccess = toolCall.output?.success === true;
   const isError = toolCall.output?.success === false;
   const hasOutput = !!toolCall.output;
@@ -59,7 +67,7 @@ function ToolCallBox({ toolCall }: { toolCall: any }) {
   const message = toolCall.output?.message;
 
   return (
-    <div className="my-1">
+    <div className="my-1 flex items-center gap-2">
       <Badge
         variant="secondary"
         className={`text-[10px] font-semibold tracking-tight border ${
@@ -76,6 +84,17 @@ function ToolCallBox({ toolCall }: { toolCall: any }) {
           <span className="ml-1.5 text-[9px] font-normal opacity-70">· {message}</span>
         )}
       </Badge>
+      {isError && onRetry && (
+        <Button
+          variant="ghost"
+          size="xs"
+          className="h-5 px-2 text-[9px]"
+          onClick={() => onRetry(toolCall)}
+          disabled={isRetrying}
+        >
+          {isRetrying ? "Retrying..." : "Retry"}
+        </Button>
+      )}
     </div>
   );
 }
@@ -89,8 +108,16 @@ export function ChatPane({ onClose }: ChatPaneProps) {
   const [showHistory, setShowHistory] = useState(false);
 
   // Tambo AI hooks - these use the threadId from the provider
-  const { thread, startNewThread, switchCurrentThread, generationStage, generationStatusMessage } = useTamboThread();
+  const { thread, startNewThread, switchCurrentThread, generationStage, generationStatusMessage, sendThreadMessage } = useTamboThread();
   const { value, setValue, submit, isPending } = useTamboThreadInput();
+  const {
+    suggestions,
+    accept,
+    isPending: isSuggestionsPending,
+    isError: isSuggestionsError,
+    error: suggestionsError,
+  } = useTamboSuggestions({ maxSuggestions: 3 });
+  const [retryingToolId, setRetryingToolId] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -331,6 +358,71 @@ export function ChatPane({ onClose }: ChatPaneProps) {
     await submitPromise;
   };
 
+  const latestAssistantMessageId = useMemo(() => {
+    const latest = [...(thread?.messages ?? [])].reverse().find(msg => msg.role === "assistant");
+    return latest?.id;
+  }, [thread?.messages]);
+
+  const hasTamboAssistantMessage = useMemo(
+    () => (thread?.messages ?? []).some(msg => msg.role === "assistant"),
+    [thread?.messages]
+  );
+
+  const visibleSuggestions = useMemo(() => {
+    if (!suggestions || suggestions.length === 0) return [];
+    if (!latestAssistantMessageId) return suggestions;
+    return suggestions.filter((suggestion: any) => suggestion.messageId === latestAssistantMessageId);
+  }, [suggestions, latestAssistantMessageId]);
+
+  const safeSuggestions = useMemo(() => {
+    return (visibleSuggestions ?? [])
+      .map((suggestion: any) => {
+        if (!suggestion) return null;
+        const title = suggestion?.title ?? suggestion?.text ?? suggestion?.detailedSuggestion ?? "Suggestion";
+        const detailedSuggestion = suggestion?.detailedSuggestion ?? suggestion?.detail ?? suggestion?.text ?? title;
+        return {
+          ...suggestion,
+          title,
+          detailedSuggestion,
+        };
+      })
+      .filter(Boolean);
+  }, [visibleSuggestions]);
+
+  const handleSuggestionAccept = async (suggestion: any) => {
+    if (!suggestion) return;
+    const detailedSuggestion =
+      suggestion.detailedSuggestion ??
+      suggestion.detail ??
+      suggestion.text ??
+      suggestion.title ??
+      "";
+    if (!detailedSuggestion) return;
+    await accept({
+      suggestion: {
+        ...suggestion,
+        detailedSuggestion,
+      },
+      shouldSubmit: true,
+    });
+  };
+
+  const handleRetryToolCall = async (toolCall: any) => {
+    if (!sendThreadMessage) return;
+    setRetryingToolId(toolCall.id ?? toolCall.name ?? "retry");
+    try {
+      const input = typeof toolCall.input === "string"
+        ? toolCall.input
+        : JSON.stringify(toolCall.input ?? {}, null, 2);
+      await sendThreadMessage(
+        `Retry the tool "${toolCall.name}" with the same input:\n${input}`,
+        { streamResponse: true }
+      );
+    } finally {
+      setRetryingToolId(null);
+    }
+  };
+
   return (
     <Card className="flex h-full flex-col border-l-0 border-t-0 rounded-none bg-card/80 shadow-none min-w-0 overflow-hidden">
       <div className="flex items-center justify-between border-b px-4 py-3">
@@ -445,7 +537,12 @@ export function ChatPane({ onClose }: ChatPaneProps) {
                           AI Actions
                         </div>
                         {msg.toolCalls.map((tc, i) => (
-                          <ToolCallBox key={i} toolCall={tc} />
+                          <ToolCallBox
+                            key={i}
+                            toolCall={tc}
+                            onRetry={handleRetryToolCall}
+                            isRetrying={retryingToolId === (tc.id ?? tc.name)}
+                          />
                         ))}
                       </div>
                     )}
@@ -509,6 +606,46 @@ export function ChatPane({ onClose }: ChatPaneProps) {
             </div>
           </div>
         </div>
+
+        {(hasTamboAssistantMessage || isSuggestionsPending || isSuggestionsError) && (
+          <Card className="space-y-2 bg-background/80 p-3">
+            <div className="text-[0.7rem] font-medium uppercase text-muted-foreground">
+              Suggested next steps
+            </div>
+            {isSuggestionsPending && (
+              <div className="text-xs text-muted-foreground">Generating suggestions...</div>
+            )}
+            {isSuggestionsError && (
+              <div className="text-xs text-destructive">
+                {suggestionsError instanceof Error ? suggestionsError.message : "Unable to load suggestions."}
+              </div>
+            )}
+            {!isSuggestionsPending && !isSuggestionsError && safeSuggestions.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {safeSuggestions.map((suggestion: any) => {
+                  const title = suggestion.title;
+                  const tooltip = suggestion.detailedSuggestion ?? suggestion.title ?? "";
+                  return (
+                  <Button
+                    key={suggestion?.id ?? title}
+                    variant="outline"
+                    size="sm"
+                    className="h-7 rounded-full text-xs"
+                    onClick={() => handleSuggestionAccept(suggestion)}
+                    disabled={isPending || isSuggestionsPending}
+                    title={tooltip}
+                  >
+                    {title}
+                  </Button>
+                  );
+                })}
+              </div>
+            )}
+            {!isSuggestionsPending && !isSuggestionsError && safeSuggestions.length === 0 && (
+              <div className="text-xs text-muted-foreground">No suggestions available yet.</div>
+            )}
+          </Card>
+        )}
 
         <Card className="space-y-2 bg-background/80 p-3">
           <div className="text-[0.7rem] font-medium uppercase text-muted-foreground">

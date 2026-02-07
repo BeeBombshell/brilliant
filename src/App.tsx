@@ -44,13 +44,9 @@ export function App() {
 export default App;
 
 function AppWithTambo() {
-  const { user } = useGoogleAuth();
-  const tamboUserKey = user?.email ?? "guest";
-
   return (
     <TamboProvider
       apiKey={import.meta.env.VITE_TAMBO_API_KEY}
-      userKey={tamboUserKey}
       autoGenerateThreadName={true}
       autoGenerateNameThreshold={3}
       components={tamboComponents}

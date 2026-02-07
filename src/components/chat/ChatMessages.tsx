@@ -49,7 +49,11 @@ export function ChatMessages({
               className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}
             >
               <div
-                className={`max-w-[85%] rounded-2xl px-4 py-2.5 shadow-sm transition-all hover:shadow-md ${
+                className={`${
+                  msg.role === "assistant" && msg.renderedComponent
+                    ? "w-full max-w-full"
+                    : "max-w-[85%]"
+                } rounded-2xl px-4 py-2.5 shadow-sm transition-all hover:shadow-md ${
                   msg.role === "user"
                     ? "bg-primary text-primary-foreground rounded-tr-none"
                     : "bg-muted text-foreground rounded-tl-none"
@@ -78,6 +82,10 @@ export function ChatMessages({
                   </div>
                 )}
 
+                {msg.role === "assistant" && msg.renderedComponent && (
+                  <div className="w-full min-w-0 overflow-visible pt-2">{msg.renderedComponent}</div>
+                )}
+
                 {checkpoints.some((c) => c.messageId === msg.id) && (
                   <div className="mt-2 flex justify-end">
                     <Button
@@ -96,10 +104,6 @@ export function ChatMessages({
                   </div>
                 )}
               </div>
-
-              {msg.role === "assistant" && msg.renderedComponent && (
-                <div className="w-full mt-2 min-w-0 overflow-x-hidden">{msg.renderedComponent}</div>
-              )}
             </div>
           ))}
 

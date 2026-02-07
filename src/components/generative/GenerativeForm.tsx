@@ -477,6 +477,11 @@ export function GenerativeForm({
         [submitting, validate, fields, values, title]
     );
 
+    const isFormReady = useMemo(() => {
+        if (!fields || fields.length === 0) return false;
+        return fields.every((f) => !!f.id && !!f.type && !!f.label);
+    }, [fields]);
+
     // Build the field rendering function with optional width support
     const renderField = (field: FormFieldDef) => {
         // Skip fields still streaming without an id or type
@@ -504,11 +509,11 @@ export function GenerativeForm({
     // Guard against streaming — fields may be undefined initially
     if (!fields || fields.length === 0) {
         return (
-            <Card className="w-full max-w-full overflow-hidden animate-pulse">
-                <CardHeader>
+            <Card className="w-full max-w-full animate-pulse bg-transparent ring-0 shadow-none rounded-none overflow-visible">
+                <CardHeader className="px-0 pt-0">
                     <CardTitle>{title ?? "Loading form…"}</CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="px-0">
                     <div className="space-y-4">
                         {[1, 2, 3].map((i) => (
                             <div key={i} className="h-10 rounded-lg bg-muted" />
@@ -521,14 +526,14 @@ export function GenerativeForm({
 
     if (submitted) {
         return (
-            <Card className="w-full max-w-full overflow-hidden">
-                <CardHeader>
+            <Card className="w-full max-w-full bg-transparent ring-0 shadow-none rounded-none overflow-visible">
+                <CardHeader className="px-0 pt-0">
                     <CardTitle className="text-green-600">✓ Submitted Successfully</CardTitle>
                     <CardDescription>
                         Your responses for "{title}" have been recorded.
                     </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="px-0">
                     <div className="space-y-2">
                         {fields.map((f) => {
                             if (!f.id) return null;
@@ -543,7 +548,7 @@ export function GenerativeForm({
                         })}
                     </div>
                 </CardContent>
-                <CardFooter>
+                <CardFooter className="px-0 bg-transparent border-0">
                     <Button
                         variant="outline"
                         size="sm"
@@ -566,13 +571,13 @@ export function GenerativeForm({
     const hasSections = sections && sections.length > 0;
 
     return (
-        <Card className="w-full max-w-full overflow-hidden">
-            <CardHeader>
+        <Card className="w-full max-w-full bg-transparent ring-0 shadow-none rounded-none overflow-visible">
+            <CardHeader className="px-0 pt-0">
                 <CardTitle>{title}</CardTitle>
                 {description && <CardDescription>{description}</CardDescription>}
             </CardHeader>
             <form onSubmit={handleSubmit}>
-                <CardContent>
+                <CardContent className="px-0">
                     {hasSections ? (
                         <div className="space-y-8">
                             {sections.map((section, idx) => {
@@ -616,20 +621,20 @@ export function GenerativeForm({
                         <div className={gridClass}>{fields.map(renderField)}</div>
                     )}
                 </CardContent>
-                <CardFooter>
-                    <Button type="submit" className="w-full sm:w-auto" disabled={submitting || queued}>
-                        {submitting ? (
-                            <span className="flex items-center gap-2">
+                {isFormReady && (
+                    <CardFooter className="px-0 bg-transparent border-0">
+                        {submitting || queued ? (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                 <IconLoader2 className="size-4 animate-spin" />
-                                Submitting…
-                            </span>
-                        ) : queued ? (
-                            "Queued"
+                                {submitting ? "Submitting…" : "Queued"}
+                            </div>
                         ) : (
-                            submitLabel ?? "Submit"
+                            <Button type="submit" className="w-full sm:w-auto">
+                                {submitLabel ?? "Submit"}
+                            </Button>
                         )}
-                    </Button>
-                </CardFooter>
+                    </CardFooter>
+                )}
             </form>
         </Card>
     );

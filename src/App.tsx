@@ -30,33 +30,41 @@ function AppContent() {
     return <GoogleLoginScreen />;
   }
 
-  return (
-    <>
-      <GoogleCalendarSync />
-      <Home />
-    </>
-  );
+  return <AppWithTambo />;
 }
 
 export function App() {
   return (
     <GoogleAuthProvider>
-      <TamboProvider
-        apiKey={import.meta.env.VITE_TAMBO_API_KEY}
-        components={tamboComponents}
-        tools={tamboTools}
-        contextHelpers={{
-          userTimeContext: () => ({
-            nowIso: new Date().toISOString(),
-            nowLocal: new Date().toLocaleString(),
-            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          }),
-        }}
-      >
-        <AppContent />
-      </TamboProvider>
+      <AppContent />
     </GoogleAuthProvider>
   );
 }
 
 export default App;
+
+function AppWithTambo() {
+  const { user } = useGoogleAuth();
+  const tamboUserKey = user?.email ?? "guest";
+
+  return (
+    <TamboProvider
+      apiKey={import.meta.env.VITE_TAMBO_API_KEY}
+      userKey={tamboUserKey}
+      autoGenerateThreadName={true}
+      autoGenerateNameThreshold={3}
+      components={tamboComponents}
+      tools={tamboTools}
+      contextHelpers={{
+        userTimeContext: () => ({
+          nowIso: new Date().toISOString(),
+          nowLocal: new Date().toLocaleString(),
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        }),
+      }}
+    >
+      <GoogleCalendarSync />
+      <Home />
+    </TamboProvider>
+  );
+}

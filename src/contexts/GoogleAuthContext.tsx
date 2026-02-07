@@ -6,6 +6,7 @@ const SCOPES = "https://www.googleapis.com/auth/calendar.events https://www.goog
 interface GoogleAuthContextType {
     isAuthenticated: boolean;
     user: GoogleUser | null;
+    accessToken: string | null;
     login: () => void;
     logout: () => void;
     isLoading: boolean;
@@ -23,8 +24,14 @@ const GoogleAuthContext = createContext<GoogleAuthContextType | null>(null);
 export function GoogleAuthProvider({ children }: { children: React.ReactNode }) {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [user, setUser] = useState<GoogleUser | null>(null);
+    const [accessToken, setAccessToken] = useState<string | null>(null);
+    const [tokenExpiration, setTokenExpiration] = useState<number | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [tokenClient, setTokenClient] = useState<google.accounts.oauth2.TokenClient | null>(null);
+
+    useEffect(() => {
+        setIsAuthenticated(Boolean(accessToken));
+    }, [accessToken]);
 
     // Initialize Google Identity Services and GAPI
     useEffect(() => {
@@ -99,7 +106,8 @@ export function GoogleAuthProvider({ children }: { children: React.ReactNode }) 
                 if (storedToken && expiration && Date.now() < parseInt(expiration)) {
                     // Restore session
                     gapi.client.setToken({ access_token: storedToken });
-                    setIsAuthenticated(true);
+                    setAccessToken(storedToken);
+                    setTokenExpiration(parseInt(expiration));
 
                     if (storedUser) {
                         try {
@@ -118,6 +126,8 @@ export function GoogleAuthProvider({ children }: { children: React.ReactNode }) 
                     localStorage.removeItem("google_token_expiration");
                     localStorage.removeItem("google_user_profile");
                     gapi.client.setToken(null);
+                    setAccessToken(null);
+                    setTokenExpiration(null);
                 }
 
             } catch (error) {
@@ -162,11 +172,12 @@ export function GoogleAuthProvider({ children }: { children: React.ReactNode }) 
 
         // Set token for GAPI
         gapi.client.setToken({ access_token: response.access_token });
+        setAccessToken(response.access_token);
+        setTokenExpiration(expirationTime);
 
         // Fetch user profile
         await fetchAndSetUser(response.access_token);
 
-        setIsAuthenticated(true);
     };
 
     const login = useCallback(() => {
@@ -195,16 +206,32 @@ export function GoogleAuthProvider({ children }: { children: React.ReactNode }) 
         localStorage.removeItem("google_user_profile");
         setIsAuthenticated(false);
         setUser(null);
+        setAccessToken(null);
+        setTokenExpiration(null);
         if (gapi.client) gapi.client.setToken(null);
     }, []);
 
+    useEffect(() => {
+        if (!accessToken || !tokenExpiration || !tokenClient) return;
+        const refreshInMs = tokenExpiration - Date.now() - 60_000;
+        if (refreshInMs <= 0) {
+            tokenClient.requestAccessToken({ prompt: "" });
+            return;
+        }
+        const timeoutId = window.setTimeout(() => {
+            tokenClient.requestAccessToken({ prompt: "" });
+        }, refreshInMs);
+        return () => window.clearTimeout(timeoutId);
+    }, [accessToken, tokenExpiration, tokenClient]);
+
     return (
-        <GoogleAuthContext.Provider value={{ isAuthenticated, user, login, logout, isLoading, tokenClient }}>
+        <GoogleAuthContext.Provider value={{ isAuthenticated, user, accessToken, login, logout, isLoading, tokenClient }}>
             {children}
         </GoogleAuthContext.Provider>
     );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useGoogleAuth() {
     const context = useContext(GoogleAuthContext);
     if (!context) {

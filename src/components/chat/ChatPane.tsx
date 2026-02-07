@@ -11,9 +11,10 @@ import { SuggestionsPanel } from "@/components/chat/SuggestionsPanel";
 // import { RecentChangesPanel } from "@/components/chat/RecentChangesPanel";
 // import { actionLogAtom } from "@/state/calendarAtoms";
 
-import { useTamboSuggestions, useTamboThread, useTamboThreadInput } from "@tambo-ai/react";
+import { useTamboSuggestions, useTamboThread, useTamboThreadInput, useTamboThreadList } from "@tambo-ai/react";
 import type { TamboThreadMessage } from "@tambo-ai/react";
-import { checkpointsAtom, eventsAtom, actionHistoryAtom, chatThreadIdAtom, threadsHistoryAtom } from "@/state/calendarAtoms";
+import { checkpointsAtom, eventsAtom, actionHistoryAtom, chatThreadIdAtom } from "@/state/calendarAtoms";
+import { useGoogleAuth } from "@/contexts/GoogleAuthContext";
 
 interface ChatPaneProps {
   onClose?: () => void;
@@ -22,11 +23,13 @@ interface ChatPaneProps {
 export function ChatPane({ onClose }: ChatPaneProps) {
   // const [actionLog] = useAtom(actionLogAtom);
 
-  const [threadId] = useAtom(chatThreadIdAtom);
-  const [threadsHistory, setThreadsHistory] = useAtom(threadsHistoryAtom);
+  const [threadId, setThreadId] = useAtom(chatThreadIdAtom);
+  const { user } = useGoogleAuth();
+  const storageKey = useMemo(() => `tambo_last_thread_id_${user?.email ?? "guest"}`, [user?.email]);
 
   // Tambo AI hooks - these use the threadId from the provider
   const { thread, startNewThread, switchCurrentThread, generationStage, generationStatusMessage, sendThreadMessage } = useTamboThread();
+  const { data: threadList } = useTamboThreadList();
   const { value, setValue, submit, isPending } = useTamboThreadInput();
   const {
     suggestions,
@@ -184,20 +187,6 @@ export function ChatPane({ onClose }: ChatPaneProps) {
   };
 
   const handleNewChat = () => {
-    // Save current thread to history if it has messages
-    if (threadId && thread?.messages && (thread.messages as any).length > 0) {
-      const firstUserMsg = orderedMessages.find(m => m.role === 'user')?.content;
-      const title = typeof firstUserMsg === 'string' ? firstUserMsg.slice(0, 30) + '...' : 'New Chat';
-
-      if (!threadsHistory.some(t => t.id === threadId)) {
-        setThreadsHistory(prev => [{
-          id: threadId,
-          title,
-          timestamp: new Date().toISOString()
-        }, ...prev]);
-      }
-    }
-
     // Reset local state
     setCheckpoints([]);
     setValue("");
@@ -213,8 +202,17 @@ export function ChatPane({ onClose }: ChatPaneProps) {
     if (switchCurrentThread) {
       switchCurrentThread(id);
     }
-    setShowHistory(false);
   };
+
+  const threadHistoryItems = useMemo(() => {
+    const items = (threadList as any)?.items ?? (threadList as any)?.threads ?? threadList ?? [];
+    if (!Array.isArray(items)) return [];
+    return items.map((t: any) => ({
+      id: t.id,
+      title: t.name || t.title || t.threadName || "Untitled",
+      timestamp: t.updatedAt || t.lastUpdatedAt || t.createdAt || new Date().toISOString(),
+    }));
+  }, [threadList]);
 
   const [history] = useAtom(actionHistoryAtom);
 
@@ -267,6 +265,24 @@ export function ChatPane({ onClose }: ChatPaneProps) {
       container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
     }
   }, [orderedMessages, isPending]);
+
+  useEffect(() => {
+    if (thread?.id && thread?.id !== threadId) {
+      setThreadId(thread.id);
+      localStorage.setItem(storageKey, thread.id);
+    }
+  }, [thread?.id, threadId, setThreadId, storageKey]);
+
+  useEffect(() => {
+    if (!switchCurrentThread) return;
+    const storedThreadId = localStorage.getItem(storageKey);
+    if (!storedThreadId) return;
+    if (thread?.id === storedThreadId) return;
+    if (thread?.messages && thread.messages.length > 0) return;
+    if (threadHistoryItems.some((t) => t.id === storedThreadId)) {
+      switchCurrentThread(storedThreadId);
+    }
+  }, [switchCurrentThread, storageKey, thread?.id, thread?.messages, threadHistoryItems]);
 
   const handleSubmit = async (event?: React.FormEvent) => {
     event?.preventDefault();
@@ -361,7 +377,7 @@ export function ChatPane({ onClose }: ChatPaneProps) {
       <ChatHeader
         threadHistoryMenu={(
           <ThreadHistoryPanel
-            threadsHistory={threadsHistory}
+            threadsHistory={threadHistoryItems}
             activeThreadId={threadId}
             onSelectThread={switchToThread}
             trigger={historyMenuTrigger}

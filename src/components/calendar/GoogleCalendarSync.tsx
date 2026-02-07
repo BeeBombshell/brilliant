@@ -1,8 +1,8 @@
 import { useEffect } from "react";
-import { useAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import { v4 as uuid } from "uuid";
 import { useGoogleAuth } from "@/contexts/GoogleAuthContext";
-import { eventBus } from "@/lib/eventBus";
+import { calendarActionEffectAtom } from "@/state/calendarEffects";
 import { eventsAtom } from "@/state/calendarAtoms";
 import type { CalendarEvent, CalendarAction, RecurrenceRule } from "@/types/calendar";
 
@@ -89,6 +89,7 @@ const toRRuleString = (recurrence: RecurrenceRule): string => {
 export function GoogleCalendarSync() {
     const { isAuthenticated, isLoading } = useGoogleAuth();
     const [, setEvents] = useAtom(eventsAtom);
+    const latestAction = useAtomValue(calendarActionEffectAtom);
 
     const withRetry = async <T,>(fn: () => Promise<T>, retries = 3, delay = 1000): Promise<T> => {
         try {
@@ -219,15 +220,12 @@ export function GoogleCalendarSync() {
         return () => clearInterval(intervalId);
     }, [isAuthenticated, isLoading, setEvents]);
 
-    // Sync to Google (Listeners)
+    // Sync to Google (effect listener)
     useEffect(() => {
-        if (!isAuthenticated) return;
+        if (!isAuthenticated || !latestAction || latestAction.source === 'system') return;
 
-        const handleEventCreated = async (payload: any) => {
-            if (payload.type !== 'event.created') return;
-            const action = payload.action as CalendarAction;
-            if (action.source === 'system') return;
-            const { event } = (action as any).payload;
+        const handleEventCreated = async (action: CalendarAction) => {
+            const { event } = action.payload as any;
 
             try {
                 const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -263,12 +261,8 @@ export function GoogleCalendarSync() {
             }
         };
 
-        const handleEventUpdated = async (payload: any) => {
-            if (payload.type !== 'event.updated' && payload.type !== 'event.moved') return;
-            const action = payload.action as CalendarAction;
-
-            if (action.source === 'system') return;
-            const { after } = (action as any).payload;
+        const handleEventUpdated = async (action: CalendarAction) => {
+            const { after } = action.payload as any;
             if (!after.googleEventId) return;
 
             try {
@@ -299,50 +293,8 @@ export function GoogleCalendarSync() {
             }
         };
 
-        const handleHistoryAction = async (payload: any) => {
-            const { action } = payload;
-            if (payload.type === 'history.undone') {
-                // If we undone an ADD, we should DELETE in Google
-                if (action.type === 'ADD_EVENT') {
-                    const { event } = action.payload;
-                    if (event.googleEventId) {
-                        try {
-                            await withRetry(() => gapi.client.calendar.events.delete({
-                                calendarId: 'primary',
-                                eventId: event.googleEventId
-                            }));
-                        } catch (err) { console.error("Error undoing Google event create", err); }
-                    }
-                }
-                // If we undone a DELETE, we should CREATE in Google
-                else if (action.type === 'DELETE_EVENT') {
-                    const { event } = action.payload;
-                    handleEventCreated({ type: 'event.created', action: { ...action, payload: { event } } });
-                }
-                // If we undone an UPDATE, we should UPDATE in Google (to 'before' state)
-                // Handles both recurring and non-recurring events
-                else if (action.type === 'UPDATE_EVENT' || action.type === 'MOVE_EVENT') {
-                    const { before } = action.payload;
-                    handleEventUpdated({ type: 'event.updated', action: { ...action, payload: { after: before } } });
-                }
-            } else if (payload.type === 'history.redone') {
-                // Similar logic for Redo
-                if (action.type === 'ADD_EVENT') {
-                    handleEventCreated({ type: 'event.created', action });
-                } else if (action.type === 'DELETE_EVENT') {
-                    handleEventDeleted({ type: 'event.deleted', action });
-                } else if (action.type === 'UPDATE_EVENT' || action.type === 'MOVE_EVENT') {
-                    handleEventUpdated({ type: 'event.updated', action });
-                }
-            }
-        };
-
-        const handleEventDeleted = async (payload: any) => {
-            if (payload.type !== 'event.deleted') return;
-            const action = payload.action as CalendarAction;
-
-            if (action.source === 'system') return;
-            const { event } = (action as any).payload;
+        const handleEventDeleted = async (action: CalendarAction) => {
+            const { event } = action.payload as any;
             if (!event.googleEventId) return;
 
             try {
@@ -355,28 +307,27 @@ export function GoogleCalendarSync() {
             }
         };
 
-        // We should also handle moved events (same as Updated really)
-        const handleEventMoved = async (payload: any) => {
-            // Re-use update logic
-            handleEventUpdated(payload);
+        const syncToGoogle = async () => {
+            try {
+                switch (latestAction.type) {
+                    case 'ADD_EVENT':
+                        await handleEventCreated(latestAction);
+                        break;
+                    case 'UPDATE_EVENT':
+                    case 'MOVE_EVENT':
+                        await handleEventUpdated(latestAction);
+                        break;
+                    case 'DELETE_EVENT':
+                        await handleEventDeleted(latestAction);
+                        break;
+                }
+            } catch (error) {
+                console.error('Error syncing to Google Calendar:', error);
+            }
         };
 
-        const unsubCreated = eventBus.subscribe("event.created", handleEventCreated);
-        const unsubUpdated = eventBus.subscribe("event.updated", handleEventUpdated);
-        const unsubDeleted = eventBus.subscribe("event.deleted", handleEventDeleted);
-        const unsubMoved = eventBus.subscribe("event.moved", handleEventMoved);
-        const unsubUndone = eventBus.subscribe("history.undone", handleHistoryAction);
-        const unsubRedone = eventBus.subscribe("history.redone", handleHistoryAction);
-
-        return () => {
-            unsubCreated();
-            unsubUpdated();
-            unsubDeleted();
-            unsubMoved();
-            unsubUndone();
-            unsubRedone();
-        };
-    }, [isAuthenticated, setEvents]);
+        syncToGoogle();
+    }, [isAuthenticated, latestAction, setEvents]);
 
     return null; // Headless component
 }

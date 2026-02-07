@@ -11,7 +11,7 @@ import {
   viewAtom,
 } from "@/state/calendarAtoms";
 import type { CalendarAction, CalendarEvent, CalendarView } from "@/types/calendar";
-import { eventBus } from "@/lib/eventBus";
+import { executeCalendarActionAtom } from "@/state/calendarEffects";
 
 const nowIso = () => new Date().toISOString();
 
@@ -22,14 +22,13 @@ export function useCalendarActions() {
   const [redoStack, setRedoStack] = useAtom(redoStackAtom);
   const [selectedDate, setSelectedDate] = useAtom(selectedDateAtom);
   const [view, setView] = useAtom(viewAtom);
+  const [, executeAction] = useAtom(executeCalendarActionAtom);
 
   const commitAction = useCallback(
-    (action: CalendarAction, eventType: "event.created" | "event.updated" | "event.deleted" | "event.moved") => {
-      setHistory(prev => [...prev, action]);
-      setRedoStack([]);
-      eventBus.emit({ type: eventType, action });
+    (action: CalendarAction) => {
+      executeAction(action);
     },
-    [setHistory, setRedoStack]
+    [executeAction]
   );
 
   const addEvent = useCallback(
@@ -44,9 +43,9 @@ export function useCalendarActions() {
       };
 
       setEvents(prev => [...prev, event]);
-      commitAction(action, "event.created");
+      commitAction(action);
     },
-    [commitAction, setEvents, setSelectedEventId]
+    [commitAction, setEvents]
   );
 
   const updateEvent = useCallback(
@@ -65,7 +64,7 @@ export function useCalendarActions() {
           payload: { before: existing, after: updated },
         };
 
-        commitAction(action, "event.updated");
+        commitAction(action);
         return prev.map(e => (e.id === id ? updated : e));
       });
     },
@@ -87,7 +86,7 @@ export function useCalendarActions() {
           payload: { event: existing },
         };
 
-        commitAction(action, "event.deleted");
+        commitAction(action);
         return prev.filter(e => e.id !== id);
       });
       setSelectedEventId(current => (current === id ? null : current));
@@ -111,7 +110,7 @@ export function useCalendarActions() {
           payload: { before: existing, after },
         };
 
-        commitAction(action, "event.moved");
+        commitAction(action);
         return prev.map(e => (e.id === id ? after : e));
       });
     },
@@ -140,7 +139,6 @@ export function useCalendarActions() {
       });
 
       setRedoStack(prevRedo => [...prevRedo, last]);
-      eventBus.emit({ type: "history.undone", action: last });
 
       return prevHistory.slice(0, -1);
     });
@@ -168,7 +166,6 @@ export function useCalendarActions() {
       });
 
       setHistory(prevHistory => [...prevHistory, last]);
-      eventBus.emit({ type: "history.redone", action: last });
 
       return prevRedo.slice(0, -1);
     });
@@ -177,7 +174,6 @@ export function useCalendarActions() {
   const changeView = useCallback(
     (nextView: CalendarView) => {
       setView(nextView);
-      eventBus.emit({ type: "view.changed", view: nextView });
     },
     [setView]
   );
@@ -185,7 +181,6 @@ export function useCalendarActions() {
   const changeDate = useCallback(
     (date: Date) => {
       setSelectedDate(date);
-      eventBus.emit({ type: "date.changed", date });
     },
     [setSelectedDate]
   );

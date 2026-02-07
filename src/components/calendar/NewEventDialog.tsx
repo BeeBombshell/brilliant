@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { parseISO, formatISO, addDays, startOfDay, endOfDay } from "date-fns";
+import { formatISO, addDays, startOfDay, endOfDay } from "date-fns";
 import { useAtom } from "jotai";
 
 import {
@@ -15,51 +15,31 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { newEventDraftAtom } from "@/state/calendarAtoms";
 import { useCalendarActions } from "@/hooks/useCalendarActions";
+import { dateTimeHelpers, eventColorConfig } from "@/lib/calendarUtils";
+import { useEventForm } from "@/hooks/useEventForm";
 import type { EventColor, RecurrenceRule } from "@/types/calendar";
 
 export function NewEventDialog() {
   const [draft, setDraft] = useAtom(newEventDraftAtom);
   const { addEvent } = useCalendarActions();
-
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [startInput, setStartInput] = useState("");
-  const [endInput, setEndInput] = useState("");
-  const [color, setColor] = useState<EventColor>("blue");
-  const [titleError, setTitleError] = useState("");
+  const form = useEventForm();
   const [recurrenceEnabled, setRecurrenceEnabled] = useState(false);
   const [recurrenceFrequency, setRecurrenceFrequency] = useState<RecurrenceRule["frequency"]>("WEEKLY");
   const [recurrenceCount, setRecurrenceCount] = useState<string>("10");
 
-  const toLocalInputValue = (iso: string) => {
-    const date = parseISO(iso);
-    const pad = (n: number) => n.toString().padStart(2, "0");
-    const yyyy = date.getFullYear();
-    const mm = pad(date.getMonth() + 1);
-    const dd = pad(date.getDate());
-    const hh = pad(date.getHours());
-    const min = pad(date.getMinutes());
-    return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
-  };
-
-  const fromLocalInputValue = (value: string) => {
-    if (!value) return null;
-    const date = new Date(value);
-    return isNaN(date.getTime()) ? null : date;
-  };
-
   useEffect(() => {
     if (draft) {
-      setTitle("");
-      setDescription("");
-      setStartInput(toLocalInputValue(draft.startDate));
-      setEndInput(toLocalInputValue(draft.endDate));
-      setColor("blue");
-      setTitleError("");
+      form.setTitle("");
+      form.setDescription("");
+      form.setStartInput(dateTimeHelpers.toLocalInputValue(draft.startDate));
+      form.setEndInput(dateTimeHelpers.toLocalInputValue(draft.endDate));
+      form.setColor("blue");
+      form.setTitleError("");
       setRecurrenceEnabled(false);
       setRecurrenceFrequency("WEEKLY");
       setRecurrenceCount("10");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft]);
 
   const open = !!draft;
@@ -69,57 +49,39 @@ export function NewEventDialog() {
   const handleClose = () => setDraft(null);
 
   const handleMakeMultiDay = (days: number) => {
-    if (!startInput) {
+    if (!form.startInput) {
       return;
     }
-    const start = fromLocalInputValue(startInput);
+    const start = dateTimeHelpers.fromLocalInputValue(form.startInput);
     if (!start) {
       return;
     }
 
-    const existingEnd = fromLocalInputValue(endInput);
+    const existingEnd = dateTimeHelpers.fromLocalInputValue(form.endInput);
     const base = existingEnd && existingEnd > start ? existingEnd : start;
     const newEnd = addDays(base, days);
-    const newEndInput = toLocalInputValue(formatISO(newEnd));
-    setEndInput(newEndInput);
+    const newEndInput = dateTimeHelpers.toLocalInputValue(formatISO(newEnd));
+    form.setEndInput(newEndInput);
   };
 
   const handleMakeAllDay = () => {
-    if (!startInput) return;
-    const start = fromLocalInputValue(startInput);
+    if (!form.startInput) return;
+    const start = dateTimeHelpers.fromLocalInputValue(form.startInput);
     if (!start) return;
 
     const dayStart = startOfDay(start);
     const dayEnd = endOfDay(start);
 
-    setStartInput(toLocalInputValue(formatISO(dayStart)));
-    setEndInput(toLocalInputValue(formatISO(dayEnd)));
+    form.setStartInput(dateTimeHelpers.toLocalInputValue(formatISO(dayStart)));
+    form.setEndInput(dateTimeHelpers.toLocalInputValue(formatISO(dayEnd)));
   };
 
   const handleCreate = () => {
-    if (!title.trim()) {
-      setTitleError("Event title is required");
-      return;
-    }
-    setTitleError("");
-
-    const startFromInput = fromLocalInputValue(startInput);
-    const endFromInput = fromLocalInputValue(endInput);
-
-    let start = startFromInput ?? parseISO(draft.startDate);
-    let end = endFromInput ?? parseISO(draft.endDate);
-
-    // Ensure end is after start (default to 30 minutes if not)
-    if (end <= start) {
-      end = new Date(start.getTime() + 30 * 60000);
-    }
+    const data = form.validateAndGetData();
+    if (!data) return;
 
     const newEvent = {
-      title: title.trim(),
-      description: description.trim() || undefined,
-      startDate: formatISO(start),
-      endDate: formatISO(end),
-      color,
+      ...data,
       meta: { source: "user" as const },
       ...(recurrenceEnabled && {
         recurrence: {
@@ -131,7 +93,6 @@ export function NewEventDialog() {
     };
 
     addEvent(newEvent);
-
     setDraft(null);
   };
 
@@ -151,17 +112,17 @@ export function NewEventDialog() {
             </label>
             <Input
               autoFocus
-              value={title}
+              value={form.title}
               onChange={event => {
-                setTitle(event.target.value);
-                if (titleError) setTitleError("");
+                form.setTitle(event.target.value);
+                if (form.titleError) form.setTitleError("");
               }}
               placeholder="e.g., Team Standup, Client Call, Deep Work"
               className="text-base"
-              aria-invalid={!!titleError}
+              aria-invalid={!!form.titleError}
             />
-            {titleError && (
-              <p className="text-sm text-destructive">{titleError}</p>
+            {form.titleError && (
+              <p className="text-sm text-destructive">{form.titleError}</p>
             )}
           </div>
           <div className="space-y-2.5">
@@ -175,8 +136,8 @@ export function NewEventDialog() {
             </label>
             <Textarea
               rows={3}
-              value={description}
-              onChange={event => setDescription(event.target.value)}
+              value={form.description}
+              onChange={event => form.setDescription(event.target.value)}
               placeholder="Add notes, agenda items, meeting links..."
               className="resize-none"
             />
@@ -225,8 +186,8 @@ export function NewEventDialog() {
                 <label className="text-xs text-muted-foreground">Start</label>
                 <Input
                   type="datetime-local"
-                  value={startInput}
-                  onChange={event => setStartInput(event.target.value)}
+                  value={form.startInput}
+                  onChange={event => form.setStartInput(event.target.value)}
                   className="text-sm"
                 />
               </div>
@@ -234,8 +195,8 @@ export function NewEventDialog() {
                 <label className="text-xs text-muted-foreground">End</label>
                 <Input
                   type="datetime-local"
-                  value={endInput}
-                  onChange={event => setEndInput(event.target.value)}
+                  value={form.endInput}
+                  onChange={event => form.setEndInput(event.target.value)}
                   className="text-sm"
                 />
               </div>
@@ -297,53 +258,19 @@ export function NewEventDialog() {
               </svg>
               Event Color
             </label>
-            <Select value={color} onValueChange={value => setColor(value as EventColor)}>
+            <Select value={form.color} onValueChange={value => form.setColor(value as EventColor)}>
               <SelectTrigger className="h-11">
                 <SelectValue placeholder="Choose event color" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="blue">
-                  <div className="flex items-center gap-2">
-                    <div className="size-3.5 rounded-full bg-sky-500" />
-                    Sky Blue
-                  </div>
-                </SelectItem>
-                <SelectItem value="green">
-                  <div className="flex items-center gap-2">
-                    <div className="size-3.5 rounded-full bg-emerald-500" />
-                    Emerald
-                  </div>
-                </SelectItem>
-                <SelectItem value="red">
-                  <div className="flex items-center gap-2">
-                    <div className="size-3.5 rounded-full bg-rose-500" />
-                    Rose
-                  </div>
-                </SelectItem>
-                <SelectItem value="yellow">
-                  <div className="flex items-center gap-2">
-                    <div className="size-3.5 rounded-full bg-amber-500" />
-                    Amber
-                  </div>
-                </SelectItem>
-                <SelectItem value="purple">
-                  <div className="flex items-center gap-2">
-                    <div className="size-3.5 rounded-full bg-violet-500" />
-                    Violet
-                  </div>
-                </SelectItem>
-                <SelectItem value="orange">
-                  <div className="flex items-center gap-2">
-                    <div className="size-3.5 rounded-full bg-orange-500" />
-                    Orange
-                  </div>
-                </SelectItem>
-                <SelectItem value="gray">
-                  <div className="flex items-center gap-2">
-                    <div className="size-3.5 rounded-full bg-slate-500" />
-                    Slate
-                  </div>
-                </SelectItem>
+                {Object.entries(eventColorConfig).map(([colorKey, { name, class: colorClass }]) => (
+                  <SelectItem key={colorKey} value={colorKey}>
+                    <div className="flex items-center gap-2">
+                      <div className={`size-3.5 rounded-full ${colorClass}`} />
+                      {name}
+                    </div>
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

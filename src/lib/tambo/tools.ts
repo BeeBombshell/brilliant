@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { getDefaultStore } from 'jotai';
 import { v4 as uuid } from 'uuid';
-import { eventsAtom, actionHistoryAtom } from '@/state/calendarAtoms';
-import { eventBus } from '@/lib/eventBus';
+import { eventsAtom } from '@/state/calendarAtoms';
+import { executeCalendarActionAtom } from '@/state/calendarEffects';
 import type { CalendarEvent, CalendarAction, EventColor, RecurrenceRule } from '@/types/calendar';
 import type { TamboTool } from '@tambo-ai/react';
 import {
@@ -50,8 +50,7 @@ export const tamboTools: TamboTool<any, any, []>[] = [
             };
 
             store.set(eventsAtom, (prev) => [...prev, event]);
-            store.set(actionHistoryAtom, (prev) => [...prev, action]);
-            eventBus.emit({ type: 'event.created', action });
+            store.set(executeCalendarActionAtom, action);
 
             const recurrenceInfo = recurrence ? ` (recurring ${recurrence.frequency.toLowerCase()}${recurrence.count ? ` for ${recurrence.count} times` : ''})` : '';
             return {
@@ -133,8 +132,7 @@ export const tamboTools: TamboTool<any, any, []>[] = [
             };
 
             store.set(eventsAtom, (prev) => prev.map(e => e.id === patch.id ? updated : e));
-            store.set(actionHistoryAtom, (prev) => [...prev, action]);
-            eventBus.emit({ type: 'event.updated', action });
+            store.set(executeCalendarActionAtom, action);
 
             return {
                 success: true,
@@ -166,8 +164,7 @@ export const tamboTools: TamboTool<any, any, []>[] = [
             };
 
             store.set(eventsAtom, (prev) => prev.filter(e => e.id !== id));
-            store.set(actionHistoryAtom, (prev) => [...prev, action]);
-            eventBus.emit({ type: 'event.deleted', action });
+            store.set(executeCalendarActionAtom, action);
 
             return {
                 success: true,
@@ -208,8 +205,7 @@ export const tamboTools: TamboTool<any, any, []>[] = [
                         payload: { event },
                     };
                     store.set(eventsAtom, (prev) => [...prev, event]);
-                    store.set(actionHistoryAtom, (prev) => [...prev, action]);
-                    eventBus.emit({ type: 'event.created', action });
+                    store.set(executeCalendarActionAtom, action);
                 }
                 else if (actionData.type === 'update') {
                     const existing = currentEvents.find(e => e.id === actionData.patch.id);
@@ -232,8 +228,7 @@ export const tamboTools: TamboTool<any, any, []>[] = [
                             payload: { before: existing, after: updated },
                         };
                         store.set(eventsAtom, (prev) => prev.map(e => e.id === actionData.patch.id ? updated : e));
-                        store.set(actionHistoryAtom, (prev) => [...prev, action]);
-                        eventBus.emit({ type: 'event.updated', action });
+                        store.set(executeCalendarActionAtom, action);
                     }
                 }
                 else if (actionData.type === 'delete') {
@@ -248,8 +243,7 @@ export const tamboTools: TamboTool<any, any, []>[] = [
                             payload: { event: existing },
                         };
                         store.set(eventsAtom, (prev) => prev.filter(e => e.id !== actionData.id));
-                        store.set(actionHistoryAtom, (prev) => [...prev, action]);
-                        eventBus.emit({ type: 'event.deleted', action });
+                        store.set(executeCalendarActionAtom, action);
                     }
                 }
                 actionCount++;
@@ -291,8 +285,7 @@ export const tamboTools: TamboTool<any, any, []>[] = [
             };
 
             store.set(eventsAtom, (prev) => [...prev, event]);
-            store.set(actionHistoryAtom, (prev) => [...prev, action]);
-            eventBus.emit({ type: 'event.created', action });
+            store.set(executeCalendarActionAtom, action);
 
             const recurrenceDescription = [
                 recurrence.frequency.toLowerCase(),

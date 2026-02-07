@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { format, parseISO, formatISO } from "date-fns";
+import { format, parseISO } from "date-fns";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -14,6 +14,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCalendarActions } from "@/hooks/useCalendarActions";
+import { eventColorConfig, dateTimeHelpers } from "@/lib/calendarUtils";
+import { useEventForm } from "@/hooks/useEventForm";
 import type { EventColor } from "@/types/calendar";
 import { useAtom } from "jotai";
 import { selectedEventIdAtom, eventsAtom } from "@/state/calendarAtoms";
@@ -22,16 +24,6 @@ interface EventDetailsDialogProps {
   onClose?: () => void;
 }
 
-const colorLabels: Record<string, { name: string; class: string }> = {
-  blue: { name: "Sky Blue", class: "bg-sky-500" },
-  green: { name: "Emerald", class: "bg-emerald-500" },
-  red: { name: "Rose", class: "bg-rose-500" },
-  yellow: { name: "Amber", class: "bg-amber-500" },
-  purple: { name: "Violet", class: "bg-violet-500" },
-  orange: { name: "Orange", class: "bg-orange-500" },
-  gray: { name: "Slate", class: "bg-slate-500" },
-};
-
 export function EventDetailsDialog({ onClose }: EventDetailsDialogProps = {}) {
   const [selectedEventId, setSelectedEventId] = useAtom(selectedEventIdAtom);
   const [events] = useAtom(eventsAtom);
@@ -39,53 +31,30 @@ export function EventDetailsDialog({ onClose }: EventDetailsDialogProps = {}) {
   const open = !!selectedEventId;
 
   const { updateEvent, deleteEvent } = useCalendarActions();
+  const form = useEventForm(event || undefined);
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
-  // Form state
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [startInput, setStartInput] = useState("");
-  const [endInput, setEndInput] = useState("");
-  const [color, setColor] = useState<EventColor>("blue");
-  const [titleError, setTitleError] = useState("");
-
-  const toLocalInputValue = (iso: string) => {
-    const date = parseISO(iso);
-    const pad = (n: number) => n.toString().padStart(2, "0");
-    const yyyy = date.getFullYear();
-    const mm = pad(date.getMonth() + 1);
-    const dd = pad(date.getDate());
-    const hh = pad(date.getHours());
-    const min = pad(date.getMinutes());
-    return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
-  };
-
-  const fromLocalInputValue = (value: string) => {
-    if (!value) return null;
-    const date = new Date(value);
-    return isNaN(date.getTime()) ? null : date;
-  };
 
   // Reset form when event changes
   useEffect(() => {
     if (event) {
-      setTitle(event.title);
-      setDescription(event.description || "");
-      setStartInput(toLocalInputValue(event.startDate));
-      setEndInput(toLocalInputValue(event.endDate));
-      setColor(event.color);
+      form.setTitle(event.title);
+      form.setDescription(event.description || "");
+      form.setStartInput(dateTimeHelpers.toLocalInputValue(event.startDate));
+      form.setEndInput(dateTimeHelpers.toLocalInputValue(event.endDate));
+      form.setColor(event.color);
+      form.setTitleError("");
       setIsEditing(false);
       setShowDeleteConfirm(false);
-      setTitleError("");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [event]);
 
   if (!event) return null;
 
   const startDate = parseISO(event.startDate);
   const endDate = parseISO(event.endDate);
-  const colorInfo = colorLabels[event.color] || colorLabels.blue;
+  const colorInfo = eventColorConfig[event.color] || eventColorConfig.blue;
 
   const handleClose = () => {
     setIsEditing(false);
@@ -95,30 +64,12 @@ export function EventDetailsDialog({ onClose }: EventDetailsDialogProps = {}) {
   };
 
   const handleSave = () => {
-    if (!title.trim()) {
-      setTitleError("Event title is required");
-      return;
-    }
-    setTitleError("");
-
-    const startFromInput = fromLocalInputValue(startInput);
-    const endFromInput = fromLocalInputValue(endInput);
-
-    if (!startFromInput || !endFromInput) return;
-
-    // Ensure end is after start (default to 30 minutes if not)
-    let finalEnd = endFromInput;
-    if (endFromInput <= startFromInput) {
-      finalEnd = new Date(startFromInput.getTime() + 30 * 60000);
-    }
+    const data = form.validateAndGetData();
+    if (!data) return;
 
     updateEvent(event.id, (prev) => ({
       ...prev,
-      title: title.trim(),
-      description: description.trim() || undefined,
-      startDate: formatISO(startFromInput),
-      endDate: formatISO(finalEnd),
-      color,
+      ...data,
       meta: { ...prev.meta, source: "user" }
     }));
 
@@ -167,17 +118,17 @@ export function EventDetailsDialog({ onClose }: EventDetailsDialogProps = {}) {
                 </label>
                 <Input
                   autoFocus
-                  value={title}
+                  value={form.title}
                   onChange={e => {
-                    setTitle(e.target.value);
-                    if (titleError) setTitleError("");
+                    form.setTitle(e.target.value);
+                    if (form.titleError) form.setTitleError("");
                   }}
                   placeholder="e.g., Team Standup, Client Call, Deep Work"
                   className="text-base"
-                  aria-invalid={!!titleError}
+                  aria-invalid={!!form.titleError}
                 />
-                {titleError && (
-                  <p className="text-sm text-destructive">{titleError}</p>
+                {form.titleError && (
+                  <p className="text-sm text-destructive">{form.titleError}</p>
                 )}
               </div>
               <div className="space-y-2.5">
@@ -191,8 +142,8 @@ export function EventDetailsDialog({ onClose }: EventDetailsDialogProps = {}) {
                 </label>
                 <Textarea
                   rows={3}
-                  value={description}
-                  onChange={e => setDescription(e.target.value)}
+                  value={form.description}
+                  onChange={e => form.setDescription(e.target.value)}
                   placeholder="Add notes, agenda items, meeting links..."
                   className="resize-none"
                 />
@@ -208,8 +159,8 @@ export function EventDetailsDialog({ onClose }: EventDetailsDialogProps = {}) {
                   </label>
                   <Input
                     type="datetime-local"
-                    value={startInput}
-                    onChange={e => setStartInput(e.target.value)}
+                    value={form.startInput}
+                    onChange={e => form.setStartInput(e.target.value)}
                     className="text-sm"
                   />
                 </div>
@@ -223,8 +174,8 @@ export function EventDetailsDialog({ onClose }: EventDetailsDialogProps = {}) {
                   </label>
                   <Input
                     type="datetime-local"
-                    value={endInput}
-                    onChange={e => setEndInput(e.target.value)}
+                    value={form.endInput}
+                    onChange={e => form.setEndInput(e.target.value)}
                     className="text-sm"
                   />
                 </div>
@@ -237,53 +188,19 @@ export function EventDetailsDialog({ onClose }: EventDetailsDialogProps = {}) {
                   </svg>
                   Event Color
                 </label>
-                <Select value={color} onValueChange={value => setColor(value as EventColor)}>
+                <Select value={form.color} onValueChange={value => form.setColor(value as EventColor)}>
                   <SelectTrigger className="h-11">
                     <SelectValue placeholder="Choose event color" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="blue">
-                      <div className="flex items-center gap-2">
-                        <div className="size-3.5 rounded-full bg-sky-500" />
-                        Sky Blue
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="green">
-                      <div className="flex items-center gap-2">
-                        <div className="size-3.5 rounded-full bg-emerald-500" />
-                        Emerald
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="red">
-                      <div className="flex items-center gap-2">
-                        <div className="size-3.5 rounded-full bg-rose-500" />
-                        Rose
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="yellow">
-                      <div className="flex items-center gap-2">
-                        <div className="size-3.5 rounded-full bg-amber-500" />
-                        Amber
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="purple">
-                      <div className="flex items-center gap-2">
-                        <div className="size-3.5 rounded-full bg-violet-500" />
-                        Violet
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="orange">
-                      <div className="flex items-center gap-2">
-                        <div className="size-3.5 rounded-full bg-orange-500" />
-                        Orange
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="gray">
-                      <div className="flex items-center gap-2">
-                        <div className="size-3.5 rounded-full bg-slate-500" />
-                        Slate
-                      </div>
-                    </SelectItem>
+                    {Object.entries(eventColorConfig).map(([colorKey, { name, class: colorClass }]) => (
+                      <SelectItem key={colorKey} value={colorKey}>
+                        <div className="flex items-center gap-2">
+                          <div className={`size-3.5 rounded-full ${colorClass}`} />
+                          {name}
+                        </div>
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

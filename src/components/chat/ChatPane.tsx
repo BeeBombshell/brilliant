@@ -13,7 +13,6 @@ import type { TamboThreadMessage } from "@tambo-ai/react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { checkpointsAtom, eventsAtom, actionHistoryAtom, chatThreadIdAtom, threadsHistoryAtom } from "@/state/calendarAtoms";
-import { eventBus } from "@/lib/eventBus";
 
 interface ChatMessage {
   id: string;
@@ -31,9 +30,19 @@ interface ChatPaneProps {
 function ToolCallBox({ toolCall }: { toolCall: any }) {
   const isSuccess = toolCall.output?.success === true;
   const isError = toolCall.output?.success === false;
-  const status = isSuccess ? "done" : isError ? "error" : "running";
+  const hasOutput = !!toolCall.output;
+  const status = isSuccess ? "done" : isError ? "error" : hasOutput ? "done" : "running";
 
   const actionLabelMap: Record<string, string> = {
+    createCalendarEvent: "Creating event",
+    createRecurringEvent: "Creating recurring event",
+    updateCalendarEvent: "Updating event",
+    deleteCalendarEvent: "Deleting event",
+    getCalendarEvents: "Fetching events",
+    reorganizeEvents: "Reorganizing schedule",
+  };
+
+  const actionDoneMap: Record<string, string> = {
     createCalendarEvent: "Event created",
     createRecurringEvent: "Recurring event created",
     updateCalendarEvent: "Event updated",
@@ -42,7 +51,12 @@ function ToolCallBox({ toolCall }: { toolCall: any }) {
     reorganizeEvents: "Schedule reorganized",
   };
 
-  const label = actionLabelMap[toolCall.name] ?? toolCall.name ?? "Tool";
+  const label = status === "done"
+    ? (actionDoneMap[toolCall.name] ?? toolCall.name ?? "Tool")
+    : (actionLabelMap[toolCall.name] ?? toolCall.name ?? "Tool");
+
+  // Extract message from output if available
+  const message = toolCall.output?.message;
 
   return (
     <div className="my-1">
@@ -53,14 +67,14 @@ function ToolCallBox({ toolCall }: { toolCall: any }) {
             ? "border-emerald-500/30 bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
             : status === "error"
             ? "border-red-500/30 bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300"
-            : "border-amber-500/30 bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+            : "border-amber-500/30 bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 animate-pulse"
         }`}
       >
-        <span className="mr-1.5 inline-flex size-1.5 rounded-full bg-current/70" />
+        <span className={`mr-1.5 inline-flex size-1.5 rounded-full bg-current/70 ${status === "running" ? "animate-pulse" : ""}`} />
         {label}
-        {status === "running" && <span className="ml-1.5 text-[9px] font-medium opacity-70">Running</span>}
-        {status === "done" && <span className="ml-1.5 text-[9px] font-medium opacity-70">Done</span>}
-        {status === "error" && <span className="ml-1.5 text-[9px] font-medium opacity-70">Error</span>}
+        {message && status === "done" && (
+          <span className="ml-1.5 text-[9px] font-normal opacity-70">· {message}</span>
+        )}
       </Badge>
     </div>
   );
@@ -75,7 +89,7 @@ export function ChatPane({ onClose }: ChatPaneProps) {
   const [showHistory, setShowHistory] = useState(false);
 
   // Tambo AI hooks - these use the threadId from the provider
-  const { thread, startNewThread, switchCurrentThread } = useTamboThread();
+  const { thread, startNewThread, switchCurrentThread, generationStage, generationStatusMessage } = useTamboThread();
   const { value, setValue, submit, isPending } = useTamboThreadInput();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -195,14 +209,32 @@ export function ChatPane({ onClose }: ChatPaneProps) {
     // Get the actions to undo
     const actionsToUndo = history.slice(checkpoint.historyIndex);
 
-    // Revert logic: Undo each action in reverse order
-    [...actionsToUndo].reverse().forEach(action => {
-      eventBus.emit({ type: "history.undone", action });
+    // Directly update atoms - revert each action
+    setEvents(prevEvents => {
+      let newEvents = [...prevEvents];
+
+      actionsToUndo.reverse().forEach(action => {
+        switch (action.type) {
+          case 'ADD_EVENT':
+            newEvents = newEvents.filter(e => e.id !== action.payload.event.id);
+            break;
+          case 'DELETE_EVENT':
+            newEvents = [...newEvents, action.payload.event];
+            break;
+          case 'UPDATE_EVENT':
+          case 'MOVE_EVENT':
+            newEvents = newEvents.map(e =>
+              e.id === action.payload.after.id ? action.payload.before : e
+            );
+            break;
+        }
+      });
+
+      return newEvents;
     });
 
     // Update state
     setHistory(prev => prev.slice(0, checkpoint.historyIndex));
-    setEvents(prev => prev.filter(e => !checkpoint.eventIds.includes(e.id)));
     setCheckpoints(prev => prev.filter(c => c.messageId !== messageId));
   };
 
@@ -457,7 +489,18 @@ export function ChatPane({ onClose }: ChatPaneProps) {
                         <span className="size-1.5 rounded-full bg-primary/40 animate-bounce" style={{ animationDelay: '150ms' }} />
                         <span className="size-1.5 rounded-full bg-primary/40 animate-bounce" style={{ animationDelay: '300ms' }} />
                       </div>
-                      <span className="text-xs font-medium text-muted-foreground">Thinking...</span>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-xs font-medium text-muted-foreground">
+                          {generationStage === 'CHOOSING_COMPONENT' ? 'Selecting component...' :
+                           generationStage === 'FETCHING_CONTEXT' ? 'Gathering context...' :
+                           generationStage === 'HYDRATING_COMPONENT' ? 'Preparing response...' :
+                           generationStage === 'STREAMING_RESPONSE' ? 'Generating...' :
+                           'Thinking...'}
+                        </span>
+                        {generationStatusMessage && (
+                          <span className="text-[10px] text-muted-foreground/70">{generationStatusMessage}</span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

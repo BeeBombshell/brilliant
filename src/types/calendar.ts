@@ -38,6 +38,7 @@ export interface CalendarEvent {
   title: string;
   description?: string;
   meetingLink?: string;
+  meetingLinkRequested?: boolean;
   location?: string;
   startDate: string; // ISO
   endDate: string; // ISO

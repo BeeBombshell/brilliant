@@ -20,7 +20,6 @@ import {
     CreateRecurringEventOutputSchema,
 } from './schemas';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const tamboTools: TamboTool<any, any, []>[] = [
     {
         name: 'createCalendarEvent',
@@ -28,7 +27,7 @@ export const tamboTools: TamboTool<any, any, []>[] = [
         description: 'Create a new event in the user\'s calendar, optionally with recurrence',
         inputSchema: CreateEventSchema,
         outputSchema: CreateEventOutputSchema,
-        tool: async ({ summary, startDateTime, endDateTime, description, recurrence }: z.infer<typeof CreateEventSchema>) => {
+        tool: async ({ summary, startDateTime, endDateTime, description, location, attendees, color, meetingLinkRequested, recurrence }: z.infer<typeof CreateEventSchema>) => {
             const store = getDefaultStore();
             const event: CalendarEvent = {
                 id: uuid(),
@@ -36,7 +35,10 @@ export const tamboTools: TamboTool<any, any, []>[] = [
                 startDate: startDateTime,
                 endDate: endDateTime,
                 description,
-                color: 'blue',
+                location,
+                attendees: attendees?.map(email => ({ email })),
+                color: (color as EventColor) ?? 'blue',
+                meetingLinkRequested,
                 meta: { source: 'ai' },
                 recurrence: recurrence as RecurrenceRule | undefined,
             };
@@ -118,7 +120,10 @@ export const tamboTools: TamboTool<any, any, []>[] = [
                 startDate: patch.startDate ?? existing.startDate,
                 endDate: patch.endDate ?? existing.endDate,
                 description: patch.description ?? existing.description,
+                location: patch.location ?? existing.location,
+                attendees: patch.attendees ? patch.attendees.map(email => ({ email })) : existing.attendees,
                 color: (patch.color as EventColor) ?? existing.color,
+                meetingLinkRequested: patch.meetingLinkRequested ?? existing.meetingLinkRequested,
                 recurrence: patch.recurrence ? (patch.recurrence as RecurrenceRule) : existing.recurrence,
                 meta: { source: 'ai' }
             };
@@ -193,7 +198,10 @@ export const tamboTools: TamboTool<any, any, []>[] = [
                         startDate: actionData.event.startDateTime,
                         endDate: actionData.event.endDateTime,
                         description: actionData.event.description,
-                        color: 'purple', // Reorganized events get a distinct color
+                        location: actionData.event.location,
+                        attendees: actionData.event.attendees?.map(email => ({ email })),
+                        color: (actionData.event.color as EventColor) ?? 'purple',
+                        meetingLinkRequested: actionData.event.meetingLinkRequested,
                         meta: { source: 'ai' }
                     };
                     const action: CalendarAction = {
@@ -216,7 +224,10 @@ export const tamboTools: TamboTool<any, any, []>[] = [
                             startDate: actionData.patch.startDate ?? existing.startDate,
                             endDate: actionData.patch.endDate ?? existing.endDate,
                             description: actionData.patch.description ?? existing.description,
+                            location: actionData.patch.location ?? existing.location,
+                            attendees: actionData.patch.attendees ? actionData.patch.attendees.map(email => ({ email })) : existing.attendees,
                             color: (actionData.patch.color as EventColor) ?? existing.color,
+                            meetingLinkRequested: actionData.patch.meetingLinkRequested ?? existing.meetingLinkRequested,
                             meta: { source: 'ai' }
                         };
                         const action: CalendarAction = {
@@ -262,7 +273,7 @@ export const tamboTools: TamboTool<any, any, []>[] = [
         description: 'Create a recurring event with a daily, weekly, monthly, or yearly pattern. Use this when the user wants an event that repeats.',
         inputSchema: CreateRecurringEventSchema,
         outputSchema: CreateRecurringEventOutputSchema,
-        tool: async ({ summary, startDateTime, endDateTime, recurrence, description, color }: z.infer<typeof CreateRecurringEventSchema>) => {
+        tool: async ({ summary, startDateTime, endDateTime, recurrence, description, location, attendees, color, meetingLinkRequested }: z.infer<typeof CreateRecurringEventSchema>) => {
             const store = getDefaultStore();
             const event: CalendarEvent = {
                 id: uuid(),
@@ -270,7 +281,10 @@ export const tamboTools: TamboTool<any, any, []>[] = [
                 startDate: startDateTime,
                 endDate: endDateTime,
                 description,
+                location,
+                attendees: attendees?.map(email => ({ email })),
                 color: (color as EventColor) ?? 'purple',
+                meetingLinkRequested,
                 meta: { source: 'ai' },
                 recurrence: recurrence as RecurrenceRule,
             };

@@ -150,23 +150,6 @@ export function EventDetailsDialog({ onClose }: EventDetailsDialogProps = {}) {
                   className="resize-none"
                 />
               </div>
-              <div className="space-y-2.5">
-                <label className="text-sm font-medium flex items-center gap-2">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M10 13a5 5 0 0 1 7 0l1 1" />
-                    <path d="M5 11a9 9 0 0 1 14 0" />
-                    <circle cx="12" cy="18" r="1" />
-                  </svg>
-                  Meeting Link
-                  <span className="text-xs text-muted-foreground font-normal">(Optional)</span>
-                </label>
-                <Input
-                  value={form.meetingLink}
-                  onChange={e => form.setMeetingLink(e.target.value)}
-                  placeholder="https://meet.google.com/..."
-                  className="text-sm"
-                />
-              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2.5">
                   <label className="text-sm font-medium flex items-center gap-2">

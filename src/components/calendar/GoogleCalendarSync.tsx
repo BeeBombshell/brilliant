@@ -312,8 +312,8 @@ export function GoogleCalendarSync() {
                     colorId: eventColorToGoogleColorId[event.color],
                 };
 
-                if (event.meetingLink || event.location) {
-                    resource.location = event.meetingLink ?? event.location;
+                if (event.location) {
+                    resource.location = event.location;
                 }
 
                 if (event.attendees && event.attendees.length > 0) {
@@ -325,6 +325,15 @@ export function GoogleCalendarSync() {
                     }));
                 }
 
+                if (event.meetingLinkRequested) {
+                    resource.conferenceData = {
+                        createRequest: {
+                            requestId: uuid(),
+                            conferenceSolutionKey: { type: "hangoutsMeet" },
+                        },
+                    };
+                }
+
                 // Add recurrence if present
                 if (event.recurrence) {
                     resource.recurrence = [toRRuleString(event.recurrence)];
@@ -333,6 +342,7 @@ export function GoogleCalendarSync() {
                 const response = await withRetry(() => gapi.client.calendar.events.insert({
                     calendarId: 'primary',
                     resource,
+                    conferenceDataVersion: event.meetingLinkRequested ? 1 : 0,
                 }));
 
                 setEvents(prev => prev.map(e =>
@@ -340,6 +350,8 @@ export function GoogleCalendarSync() {
                         ...e,
                         googleEventId: response.result.id,
                         meta: { ...e.meta, source: "system" } as any,
+                        meetingLink: extractMeetingLink(response.result) ?? e.meetingLink,
+                        meetingLinkRequested: false,
                         // Prefer the recurrence from Google's response, fall back to our local copy
                         recurrence: parseRecurrence(response.result.recurrence) ?? e.recurrence,
                     } : e

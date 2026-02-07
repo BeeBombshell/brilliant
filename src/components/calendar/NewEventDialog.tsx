@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { newEventDraftAtom } from "@/state/calendarAtoms";
 import { useCalendarActions } from "@/hooks/useCalendarActions";
 import { dateTimeHelpers, eventColorConfig } from "@/lib/calendarUtils";
@@ -28,6 +29,7 @@ export function NewEventDialog() {
   const [recurrenceFrequency, setRecurrenceFrequency] = useState<RecurrenceRule["frequency"]>("WEEKLY");
   const [recurrenceCount, setRecurrenceCount] = useState<string>("10");
   const { user } = useGoogleAuth();
+  const [meetingLinkRequested, setMeetingLinkRequested] = useState(false);
 
   useEffect(() => {
     if (draft) {
@@ -41,6 +43,7 @@ export function NewEventDialog() {
       setRecurrenceEnabled(false);
       setRecurrenceFrequency("WEEKLY");
       setRecurrenceCount("10");
+      setMeetingLinkRequested(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft]);
@@ -86,6 +89,12 @@ export function NewEventDialog() {
     const newEvent = {
       ...data,
       meta: { source: "user" as const },
+      meetingLinkRequested,
+      organizer: user?.email || user?.name ? {
+        name: user?.name,
+        email: user?.email,
+        self: true,
+      } : undefined,
       ...(recurrenceEnabled && {
         recurrence: {
           frequency: recurrenceFrequency,
@@ -94,11 +103,6 @@ export function NewEventDialog() {
         } satisfies RecurrenceRule,
       }),
     };
-          organizer: user?.email || user?.name ? {
-            name: user?.name,
-            email: user?.email,
-            self: true,
-          } : undefined,
 
     addEvent(newEvent);
     setDraft(null);
@@ -259,6 +263,20 @@ export function NewEventDialog() {
             </div>
           </div>
           <div className="space-y-2.5">
+            <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+              <div className="space-y-0.5">
+                <p className="text-sm font-medium">Add Google Meet link</p>
+                <p className="text-xs text-muted-foreground">
+                  Create a meeting link through Google Calendar
+                </p>
+              </div>
+              <Switch
+                checked={meetingLinkRequested}
+                onCheckedChange={setMeetingLinkRequested}
+              />
+            </div>
+          </div>
+          <div className="space-y-2.5">
             <label className="text-sm font-medium flex items-center gap-2">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="12" cy="12" r="10" />
@@ -266,23 +284,6 @@ export function NewEventDialog() {
               </svg>
               Event Color
             </label>
-              <div className="space-y-2.5">
-                <label className="text-sm font-medium flex items-center gap-2">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M10 13a5 5 0 0 1 7 0l1 1" />
-                    <path d="M5 11a9 9 0 0 1 14 0" />
-                    <circle cx="12" cy="18" r="1" />
-                  </svg>
-                  Meeting Link
-                  <span className="text-xs text-muted-foreground font-normal">(Optional)</span>
-                </label>
-                <Input
-                  value={form.meetingLink}
-                  onChange={event => form.setMeetingLink(event.target.value)}
-                  placeholder="https://meet.google.com/..."
-                  className="text-sm"
-                />
-              </div>
             <Select value={form.color} onValueChange={value => form.setColor(value as EventColor)}>
               <SelectTrigger className="h-11">
                 <SelectValue placeholder="Choose event color" />

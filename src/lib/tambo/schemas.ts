@@ -55,6 +55,8 @@ export const CreateEventSchema = z.object({
     description: z.string().optional().describe('Event description'),
     location: z.string().optional().describe('Event location'),
     attendees: z.array(z.string()).optional().describe('Email addresses of attendees'),
+    color: z.enum(['blue', 'green', 'red', 'yellow', 'purple', 'orange', 'gray']).optional().describe('Event color'),
+    meetingLinkRequested: z.boolean().optional().describe('If true, create a Google Meet link via Google Calendar'),
     recurrence: RecurrenceRuleSchema.optional().describe('Recurrence pattern for repeating events'),
 });
 
@@ -69,7 +71,10 @@ export const UpdateEventSchema = z.object({
     startDate: z.string().optional().describe('New start date/time in ISO format'),
     endDate: z.string().optional().describe('New end date/time in ISO format'),
     description: z.string().optional().describe('New event description'),
+    location: z.string().optional().describe('New event location'),
+    attendees: z.array(z.string()).optional().describe('Email addresses of attendees'),
     color: z.enum(['blue', 'green', 'red', 'yellow', 'purple', 'orange', 'gray']).optional().describe('Event color'),
+    meetingLinkRequested: z.boolean().optional().describe('If true, create a Google Meet link via Google Calendar'),
     recurrence: RecurrenceRuleSchema.optional().describe('Update recurrence pattern (omit to remove recurrence)'),
 });
 
@@ -84,7 +89,9 @@ export const CreateRecurringEventSchema = z.object({
     recurrence: RecurrenceRuleSchema.describe('Recurrence pattern - REQUIRED. Specify frequency (DAILY/WEEKLY/MONTHLY/YEARLY), optional count, endDate, interval, and byDay'),
     description: z.string().optional().describe('Event description'),
     location: z.string().optional().describe('Event location'),
+    attendees: z.array(z.string()).optional().describe('Email addresses of attendees'),
     color: z.enum(['blue', 'green', 'red', 'yellow', 'purple', 'orange', 'gray']).optional().describe('Event color'),
+    meetingLinkRequested: z.boolean().optional().describe('If true, create a Google Meet link via Google Calendar'),
 });
 
 export const CreateRecurringEventOutputSchema = z.object({

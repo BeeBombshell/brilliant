@@ -81,7 +81,7 @@ export function useCalendarActions() {
           id: uuid(),
           type: "DELETE_EVENT",
           timestamp: nowIso(),
-          source: existing.meta?.source ?? "user",
+          source: "user",
           explanation,
           payload: { event: existing },
         };

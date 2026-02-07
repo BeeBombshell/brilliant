@@ -188,8 +188,9 @@ export function CalendarShell({ children }: { children: React.ReactNode }) {
                 </svg>
               </Button>
             </div>
-            <Button variant="default" size="sm" onClick={createQuickEvent}>
-              + Event
+            <Button variant="default" size="sm" 
+            onClick={createQuickEvent}>
+              Event
             </Button>
           </div>
         </div>

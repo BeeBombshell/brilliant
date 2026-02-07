@@ -6,6 +6,7 @@ import { dateTimeHelpers } from '@/lib/calendarUtils';
 export function useEventForm(initialEvent?: CalendarEvent) {
   const [title, setTitle] = useState(initialEvent?.title ?? '');
   const [description, setDescription] = useState(initialEvent?.description ?? '');
+  const [meetingLink, setMeetingLink] = useState(initialEvent?.meetingLink ?? '');
   const [startInput, setStartInput] = useState(
     initialEvent ? dateTimeHelpers.toLocalInputValue(initialEvent.startDate) : ''
   );
@@ -32,6 +33,7 @@ export function useEventForm(initialEvent?: CalendarEvent) {
     return {
       title: title.trim(),
       description: description.trim() || undefined,
+      meetingLink: meetingLink.trim() || undefined,
       color,
       startDate: formatISO(validStart),
       endDate: formatISO(validEnd),
@@ -41,6 +43,7 @@ export function useEventForm(initialEvent?: CalendarEvent) {
   return {
     title, setTitle,
     description, setDescription,
+    meetingLink, setMeetingLink,
     startInput, setStartInput,
     endInput, setEndInput,
     color, setColor,

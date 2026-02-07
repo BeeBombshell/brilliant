@@ -40,6 +40,7 @@ export function EventDetailsDialog({ onClose }: EventDetailsDialogProps = {}) {
     if (event) {
       form.setTitle(event.title);
       form.setDescription(event.description || "");
+      form.setMeetingLink(event.meetingLink || "");
       form.setStartInput(dateTimeHelpers.toLocalInputValue(event.startDate));
       form.setEndInput(dateTimeHelpers.toLocalInputValue(event.endDate));
       form.setColor(event.color);
@@ -55,6 +56,7 @@ export function EventDetailsDialog({ onClose }: EventDetailsDialogProps = {}) {
   const startDate = parseISO(event.startDate);
   const endDate = parseISO(event.endDate);
   const colorInfo = eventColorConfig[event.color] || eventColorConfig.blue;
+  const isMeetingLinkUrl = !!event.meetingLink && /^https?:\/\//i.test(event.meetingLink);
 
   const handleClose = () => {
     setIsEditing(false);
@@ -146,6 +148,23 @@ export function EventDetailsDialog({ onClose }: EventDetailsDialogProps = {}) {
                   onChange={e => form.setDescription(e.target.value)}
                   placeholder="Add notes, agenda items, meeting links..."
                   className="resize-none"
+                />
+              </div>
+              <div className="space-y-2.5">
+                <label className="text-sm font-medium flex items-center gap-2">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M10 13a5 5 0 0 1 7 0l1 1" />
+                    <path d="M5 11a9 9 0 0 1 14 0" />
+                    <circle cx="12" cy="18" r="1" />
+                  </svg>
+                  Meeting Link
+                  <span className="text-xs text-muted-foreground font-normal">(Optional)</span>
+                </label>
+                <Input
+                  value={form.meetingLink}
+                  onChange={e => form.setMeetingLink(e.target.value)}
+                  placeholder="https://meet.google.com/..."
+                  className="text-sm"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -261,6 +280,94 @@ export function EventDetailsDialog({ onClose }: EventDetailsDialogProps = {}) {
                       <p className="text-sm text-muted-foreground leading-relaxed">
                         {event.description}
                       </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {(event.meetingLink || event.location) && (
+                <div className="space-y-2">
+                  <div className="flex items-start gap-3">
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      className="mt-0.5 text-muted-foreground"
+                    >
+                      <path d="M10 13a5 5 0 0 1 7 0l1 1" />
+                      <path d="M5 11a9 9 0 0 1 14 0" />
+                      <circle cx="12" cy="18" r="1" />
+                    </svg>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium mb-1">
+                        {event.meetingLink ? "Meeting Link" : "Location"}
+                      </p>
+                      {event.meetingLink ? (
+                        isMeetingLinkUrl ? (
+                          <a
+                            href={event.meetingLink}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-sm text-primary underline break-all"
+                          >
+                            {event.meetingLink}
+                          </a>
+                        ) : (
+                          <p className="text-sm text-muted-foreground leading-relaxed">
+                            {event.meetingLink}
+                          </p>
+                        )
+                      ) : (
+                        <p className="text-sm text-muted-foreground leading-relaxed">
+                          {event.location}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {(event.organizer || event.creator || (event.attendees && event.attendees.length > 0)) && (
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3">
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      className="mt-0.5 text-muted-foreground"
+                    >
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                      <circle cx="12" cy="7" r="4" />
+                    </svg>
+                    <div className="flex-1 space-y-3">
+                      {(event.organizer || event.creator) && (
+                        <div>
+                          <p className="text-sm font-medium mb-1">Organizer</p>
+                          <p className="text-sm text-muted-foreground">
+                            {event.organizer?.name || event.creator?.name || event.organizer?.email || event.creator?.email || "Unknown"}
+                            {event.organizer?.email && event.organizer?.name ? ` · ${event.organizer.email}` : ""}
+                          </p>
+                        </div>
+                      )}
+                      {event.attendees && event.attendees.length > 0 && (
+                        <div>
+                          <p className="text-sm font-medium mb-1">Attendees</p>
+                          <ul className="space-y-1">
+                            {event.attendees.map(attendee => (
+                              <li key={attendee.email} className="text-sm text-muted-foreground">
+                                {attendee.name || attendee.email}
+                                {attendee.responseStatus ? ` · ${attendee.responseStatus}` : ""}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

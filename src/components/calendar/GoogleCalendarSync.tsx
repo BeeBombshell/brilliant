@@ -4,7 +4,74 @@ import { v4 as uuid } from "uuid";
 import { useGoogleAuth } from "@/contexts/GoogleAuthContext";
 import { calendarActionEffectAtom } from "@/state/calendarEffects";
 import { eventsAtom } from "@/state/calendarAtoms";
-import type { CalendarEvent, CalendarAction, RecurrenceRule } from "@/types/calendar";
+import type { CalendarEvent, CalendarAction, RecurrenceRule, EventAttendee, EventPerson, EventColor } from "@/types/calendar";
+
+const googleColorIdToEventColor: Record<string, EventColor> = {
+    "1": "blue",
+    "2": "green",
+    "3": "purple",
+    "4": "red",
+    "5": "yellow",
+    "6": "orange",
+    "7": "gray",
+    "8": "blue",
+    "9": "green",
+    "10": "red",
+    "11": "gray",
+};
+
+const eventColorToGoogleColorId: Record<EventColor, string> = {
+    blue: "1",
+    green: "2",
+    purple: "3",
+    red: "4",
+    yellow: "5",
+    orange: "6",
+    gray: "7",
+};
+
+const isHttpUrl = (value?: string): boolean => {
+    if (!value) return false;
+    try {
+        const url = new URL(value);
+        return url.protocol === "http:" || url.protocol === "https:";
+    } catch {
+        return false;
+    }
+};
+
+const extractMeetingLink = (gEvent: any): string | undefined => {
+    if (gEvent?.hangoutLink) return gEvent.hangoutLink;
+    const entryPoint = gEvent?.conferenceData?.entryPoints?.find((entry: any) => entry?.uri);
+    if (entryPoint?.uri) return entryPoint.uri;
+    if (isHttpUrl(gEvent?.location)) return gEvent.location;
+    return undefined;
+};
+
+const mapPerson = (person?: any): EventPerson | undefined => {
+    if (!person) return undefined;
+    const mapped: EventPerson = {
+        name: person.displayName,
+        email: person.email,
+        self: person.self,
+    };
+    if (!mapped.name && !mapped.email) return undefined;
+    return mapped;
+};
+
+const mapAttendees = (attendees?: any[]): EventAttendee[] | undefined => {
+    if (!attendees || attendees.length === 0) return undefined;
+    return attendees
+        .filter(attendee => attendee?.email)
+        .map(attendee => ({
+            email: attendee.email,
+            name: attendee.displayName,
+            responseStatus: attendee.responseStatus,
+            optional: attendee.optional,
+            organizer: attendee.organizer,
+            self: attendee.self,
+        }));
+};
 
 // Helper function to parse Google RRULE UNTIL format (e.g. "20260301T000000Z") into ISO string
 const parseUntilDate = (until: string): string | undefined => {
@@ -168,29 +235,37 @@ export function GoogleCalendarSync() {
 
                         if (!start || !end) return; // Skip malformed events
 
-                        // Check if we really need to update to avoid unnecessary re-renders
-                        if (existingEvent) {
-                            if (existingEvent.title === (gEvent.summary || "(No Title)") &&
-                                existingEvent.description === gEvent.description &&
-                                existingEvent.startDate === start &&
-                                existingEvent.endDate === end) {
-                                return;
-                            }
-                        }
-
                         const recurrence = parseRecurrence(gEvent.recurrence);
 
                         const mappedEvent: CalendarEvent = {
                             id: existingEvent ? existingEvent.id : uuid(),
                             title: gEvent.summary || "(No Title)",
                             description: gEvent.description,
+                            meetingLink: extractMeetingLink(gEvent),
+                            location: gEvent.location,
                             startDate: start,
                             endDate: end,
-                            color: "blue",
+                            color: googleColorIdToEventColor[String(gEvent.colorId)] ?? "blue",
                             meta: { source: "system" },
                             googleEventId: gEvent.id,
+                            organizer: mapPerson(gEvent.organizer),
+                            creator: mapPerson(gEvent.creator),
+                            attendees: mapAttendees(gEvent.attendees),
                             recurrence,
                         };
+
+                        // Check if we really need to update to avoid unnecessary re-renders
+                        if (existingEvent) {
+                            if (existingEvent.title === mappedEvent.title &&
+                                existingEvent.description === mappedEvent.description &&
+                                existingEvent.meetingLink === mappedEvent.meetingLink &&
+                                existingEvent.location === mappedEvent.location &&
+                                existingEvent.startDate === mappedEvent.startDate &&
+                                existingEvent.endDate === mappedEvent.endDate &&
+                                existingEvent.color === mappedEvent.color) {
+                                return;
+                            }
+                        }
 
                         if (existingEvent) {
                             const index = newEvents.findIndex(e => e.id === existingEvent.id);
@@ -234,7 +309,21 @@ export function GoogleCalendarSync() {
                     description: event.description,
                     start: { dateTime: event.startDate, timeZone },
                     end: { dateTime: event.endDate, timeZone },
+                    colorId: eventColorToGoogleColorId[event.color],
                 };
+
+                if (event.meetingLink || event.location) {
+                    resource.location = event.meetingLink ?? event.location;
+                }
+
+                if (event.attendees && event.attendees.length > 0) {
+                    resource.attendees = event.attendees.map(attendee => ({
+                        email: attendee.email,
+                        displayName: attendee.name,
+                        responseStatus: attendee.responseStatus,
+                        optional: attendee.optional,
+                    }));
+                }
 
                 // Add recurrence if present
                 if (event.recurrence) {
@@ -272,7 +361,21 @@ export function GoogleCalendarSync() {
                     description: after.description,
                     start: { dateTime: after.startDate, timeZone },
                     end: { dateTime: after.endDate, timeZone },
+                    colorId: eventColorToGoogleColorId[after.color],
                 };
+
+                if (after.meetingLink || after.location) {
+                    resource.location = after.meetingLink ?? after.location;
+                }
+
+                if (after.attendees && after.attendees.length > 0) {
+                    resource.attendees = after.attendees.map(attendee => ({
+                        email: attendee.email,
+                        displayName: attendee.name,
+                        responseStatus: attendee.responseStatus,
+                        optional: attendee.optional,
+                    }));
+                }
 
                 // Add recurrence if present
                 if (after.recurrence) {

@@ -13,6 +13,18 @@ export interface CalendarEventMeta {
   source: "user" | "ai" | "system";
 }
 
+export interface EventPerson {
+  name?: string;
+  email?: string;
+  self?: boolean;
+}
+
+export interface EventAttendee extends EventPerson {
+  responseStatus?: "needsAction" | "declined" | "tentative" | "accepted";
+  optional?: boolean;
+  organizer?: boolean;
+}
+
 export interface RecurrenceRule {
   frequency: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
   endDate?: string; // ISO - until when to recur
@@ -25,11 +37,16 @@ export interface CalendarEvent {
   id: string;
   title: string;
   description?: string;
+  meetingLink?: string;
+  location?: string;
   startDate: string; // ISO
   endDate: string; // ISO
   color: EventColor;
   meta?: CalendarEventMeta;
   googleEventId?: string;
+  organizer?: EventPerson;
+  creator?: EventPerson;
+  attendees?: EventAttendee[];
   recurrence?: RecurrenceRule; // For recurring events
   recurringEventId?: string; // Parent recurring event ID (for instances)
   isInstance?: boolean; // True if this is an instance of a recurring event

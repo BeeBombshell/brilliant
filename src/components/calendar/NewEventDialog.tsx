@@ -18,6 +18,7 @@ import { useCalendarActions } from "@/hooks/useCalendarActions";
 import { dateTimeHelpers, eventColorConfig } from "@/lib/calendarUtils";
 import { useEventForm } from "@/hooks/useEventForm";
 import type { EventColor, RecurrenceRule } from "@/types/calendar";
+import { useGoogleAuth } from "@/contexts/GoogleAuthContext";
 
 export function NewEventDialog() {
   const [draft, setDraft] = useAtom(newEventDraftAtom);
@@ -26,11 +27,13 @@ export function NewEventDialog() {
   const [recurrenceEnabled, setRecurrenceEnabled] = useState(false);
   const [recurrenceFrequency, setRecurrenceFrequency] = useState<RecurrenceRule["frequency"]>("WEEKLY");
   const [recurrenceCount, setRecurrenceCount] = useState<string>("10");
+  const { user } = useGoogleAuth();
 
   useEffect(() => {
     if (draft) {
       form.setTitle("");
       form.setDescription("");
+      form.setMeetingLink("");
       form.setStartInput(dateTimeHelpers.toLocalInputValue(draft.startDate));
       form.setEndInput(dateTimeHelpers.toLocalInputValue(draft.endDate));
       form.setColor("blue");
@@ -91,6 +94,11 @@ export function NewEventDialog() {
         } satisfies RecurrenceRule,
       }),
     };
+          organizer: user?.email || user?.name ? {
+            name: user?.name,
+            email: user?.email,
+            self: true,
+          } : undefined,
 
     addEvent(newEvent);
     setDraft(null);
@@ -258,6 +266,23 @@ export function NewEventDialog() {
               </svg>
               Event Color
             </label>
+              <div className="space-y-2.5">
+                <label className="text-sm font-medium flex items-center gap-2">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M10 13a5 5 0 0 1 7 0l1 1" />
+                    <path d="M5 11a9 9 0 0 1 14 0" />
+                    <circle cx="12" cy="18" r="1" />
+                  </svg>
+                  Meeting Link
+                  <span className="text-xs text-muted-foreground font-normal">(Optional)</span>
+                </label>
+                <Input
+                  value={form.meetingLink}
+                  onChange={event => form.setMeetingLink(event.target.value)}
+                  placeholder="https://meet.google.com/..."
+                  className="text-sm"
+                />
+              </div>
             <Select value={form.color} onValueChange={value => form.setColor(value as EventColor)}>
               <SelectTrigger className="h-11">
                 <SelectValue placeholder="Choose event color" />

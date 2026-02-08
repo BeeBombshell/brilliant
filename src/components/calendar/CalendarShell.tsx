@@ -3,9 +3,9 @@ import { addDays, addWeeks, addMonths, subDays, subWeeks, subMonths, format } fr
 import {
   IconChevronLeft,
   IconChevronRight,
-  IconLayoutList,
-  IconLayoutGrid,
-  IconCalendarMonth,
+  IconArrowBackUp,
+  IconArrowForwardUp,
+  IconPlus,
 } from "@tabler/icons-react";
 
 import { Button } from "@/components/ui/button";
@@ -85,7 +85,7 @@ export function CalendarShell({ children }: { children: React.ReactNode }) {
 
   return (
     <Card className="flex h-full flex-col border-none shadow-none">
-      <div className="flex shrink-0 h-[60px] flex-col sm:flex-row items-center justify-between gap-4 border-b px-4 sm:px-6">
+      <div className="flex shrink-0 h-[60px] flex-col sm:flex-row items-center justify-between gap-4 border-b px-4 sm:px-2">
         <div className="flex flex-col sm:flex-row gap-3 sm:items-center flex-wrap">
           <div className="flex items-center gap-3">
             <CalendarDateIcon date={new Date()} onClick={goToday} />
@@ -124,62 +124,68 @@ export function CalendarShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          <Separator orientation="vertical" className="hidden sm:block h-12 self-center" />
+          <Separator orientation="vertical" className="hidden sm:block h-12 bg-border/60" />
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
             <Button
-              variant="outline"
+              variant="default"
               size="sm"
-              onClick={undo}
-              disabled={history.length === 0}
+              className="h-8 gap-1.5"
+              onClick={createQuickEvent}
             >
-              Undo
+              <IconPlus size={16} />
+              <span>Event</span>
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={redo}
-              disabled={redoStack.length === 0}
-              className="hidden sm:inline-flex"
-            >
-              Redo
-            </Button>
-          </div>
 
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 rounded-md bg-muted p-1">
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 hover:bg-muted"
+                onClick={undo}
+                disabled={history.length === 0}
+                title="Undo (Ctrl+Z)"
+              >
+                <IconArrowBackUp size={18} />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 hover:bg-muted hidden sm:inline-flex"
+                onClick={redo}
+                disabled={redoStack.length === 0}
+                title="Redo (Ctrl+Y)"
+              >
+                <IconArrowForwardUp size={18} />
+              </Button>
+            </div>
+
+            <div className="flex items-center gap-1 rounded-xl bg-muted/40 border border-border/40 p-1">
               <Button
                 size="sm"
                 variant={view === "day" ? "secondary" : "ghost"}
-                className="h-7 w-7 p-0"
+                className={`h-7 px-3 text-xs font-medium transition-all ${view === "day" ? "shadow-sm bg-background hover:bg-background" : "hover:bg-transparent hover:text-foreground/80 text-muted-foreground"}`}
                 onClick={() => changeView("day")}
-                title="Day view"
               >
-                <IconLayoutList size={16} />
+                Day
               </Button>
               <Button
                 size="sm"
                 variant={view === "week" ? "secondary" : "ghost"}
-                className="h-7 w-7 p-0"
+                className={`h-7 px-3 text-xs font-medium transition-all ${view === "week" ? "shadow-sm bg-background hover:bg-background" : "hover:bg-transparent hover:text-foreground/80 text-muted-foreground"}`}
                 onClick={() => changeView("week")}
-                title="Week view"
               >
-                <IconLayoutGrid size={16} />
+                Week
               </Button>
               <Button
                 size="sm"
                 variant={view === "month" ? "secondary" : "ghost"}
-                className="h-7 w-7 p-0"
+                className={`h-7 px-3 text-xs font-medium transition-all ${view === "month" ? "shadow-sm bg-background hover:bg-background" : "hover:bg-transparent hover:text-foreground/80 text-muted-foreground"}`}
                 onClick={() => changeView("month")}
-                title="Month view"
               >
-                <IconCalendarMonth size={16} />
+                Month
               </Button>
             </div>
-            <Button variant="default" size="sm"
-              onClick={createQuickEvent}>
-              Event
-            </Button>
           </div>
         </div>
 

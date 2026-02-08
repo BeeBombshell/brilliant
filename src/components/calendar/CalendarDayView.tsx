@@ -33,8 +33,8 @@ export function CalendarDayView() {
     0
   );
 
-  // Filter events for this day
-  const allDayEvents = events.filter(event => {
+  // Filter events for this day - memoized to provide stable references
+  const allDayEvents = useMemo(() => events.filter(event => {
     const start = parseISO(event.startDate);
     const end = parseISO(event.endDate);
     const dayStartTime = startOfDay(selectedDate);
@@ -42,11 +42,11 @@ export function CalendarDayView() {
 
     // Event overlaps with this day
     return start <= dayEndTime && end >= dayStartTime;
-  });
+  }), [events, selectedDate]);
 
   // Separate multi-day and single-day events
-  const multiDayEvents = allDayEvents.filter(isMultiDayEvent);
-  const singleDayEvents = allDayEvents.filter(event => !isMultiDayEvent(event));
+  const multiDayEvents = useMemo(() => allDayEvents.filter(isMultiDayEvent), [allDayEvents]);
+  const singleDayEvents = useMemo(() => allDayEvents.filter(event => !isMultiDayEvent(event)), [allDayEvents]);
 
   // Group overlapping single-day events for side-by-side layout
   const eventColumns = useMemo(() => groupOverlappingEvents(singleDayEvents, selectedDate), [singleDayEvents, selectedDate]);

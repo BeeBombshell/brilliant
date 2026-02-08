@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useGoogleAuth } from "@/contexts/GoogleAuthContext";
 import {
   DropdownMenu,
@@ -13,14 +13,13 @@ import { IconChevronDown, IconMoon, IconSun, IconLogout } from "@tabler/icons-re
 
 export function UserMenu() {
   const { user, logout } = useGoogleAuth();
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
-
-  useEffect(() => {
+  // Use lazy initializer to avoid calling setState in an effect
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
     // Check initial theme from document
     const isDark = document.documentElement.classList.contains("dark") ||
       document.body.classList.contains("dark");
-    setTheme(isDark ? "dark" : "light");
-  }, []);
+    return isDark ? "dark" : "light";
+  });
 
   const toggleTheme = () => {
     const newTheme = theme === "dark" ? "light" : "dark";

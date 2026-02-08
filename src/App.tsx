@@ -8,6 +8,7 @@ import { tamboComponents } from "./lib/tambo";
 import { GoogleAuthProvider, useGoogleAuth } from "@/contexts/GoogleAuthContext";
 import { GoogleCalendarSync } from "@/components/calendar/GoogleCalendarSync";
 import { GoogleLoginScreen } from "@/components/auth/GoogleLoginScreen";
+import { SessionExpiredDialog } from "@/components/auth/SessionExpiredDialog";
 import Home from "./pages/Home";
 
 
@@ -60,6 +61,7 @@ function AppWithTambo() {
       }}
     >
       <GoogleCalendarSync />
+      <SessionExpiredDialog />
       <Home />
     </TamboProvider>
   );

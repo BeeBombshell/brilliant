@@ -153,22 +153,23 @@ const toRRuleString = (recurrence: RecurrenceRule): string => {
 };
 
 
+// Retry utility for API calls - defined outside component since it's a pure function
+const withRetry = async <T,>(fn: () => Promise<T>, retries = 3, delay = 1000): Promise<T> => {
+    try {
+        return await fn();
+    } catch (err) {
+        if (retries > 0) {
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return withRetry(fn, retries - 1, delay * 2);
+        }
+        throw err;
+    }
+};
+
 export function GoogleCalendarSync() {
     const { isAuthenticated, isLoading } = useGoogleAuth();
     const [, setEvents] = useAtom(eventsAtom);
     const latestAction = useAtomValue(calendarActionEffectAtom);
-
-    const withRetry = async <T,>(fn: () => Promise<T>, retries = 3, delay = 1000): Promise<T> => {
-        try {
-            return await fn();
-        } catch (err) {
-            if (retries > 0) {
-                await new Promise(resolve => setTimeout(resolve, delay));
-                return withRetry(fn, retries - 1, delay * 2);
-            }
-            throw err;
-        }
-    };
 
     // Sync from Google on mount/auth and poll every 60s
     useEffect(() => {

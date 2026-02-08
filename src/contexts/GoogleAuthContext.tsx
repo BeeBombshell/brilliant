@@ -3,6 +3,19 @@ import { createContext, useContext, useEffect, useState, useCallback } from "rea
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const SCOPES = "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email";
 
+/**
+ * AUTHENTICATION LIMITATION:
+ * This app uses Google's OAuth2 Implicit Grant Flow via Google Identity Services.
+ * The implicit flow only provides short-lived access tokens (~1 hour) and does NOT
+ * provide refresh tokens. True refresh tokens require:
+ *   1. A backend server to handle the Authorization Code flow
+ *   2. The `access_type=offline` parameter
+ *   3. Secure server-side storage of refresh tokens
+ *
+ * Current behavior: When the access token expires, users are prompted to re-authenticate
+ * rather than silently refreshing (which would fail or cause UX issues).
+ */
+
 interface GoogleAuthContextType {
     isAuthenticated: boolean;
     user: GoogleUser | null;
@@ -11,6 +24,10 @@ interface GoogleAuthContextType {
     logout: () => void;
     isLoading: boolean;
     tokenClient: google.accounts.oauth2.TokenClient | null;
+    /** True when the session has expired and the user needs to re-authenticate */
+    sessionExpired: boolean;
+    /** Clear the sessionExpired flag (call after showing re-auth prompt) */
+    clearSessionExpired: () => void;
 }
 
 interface GoogleUser {
@@ -28,6 +45,7 @@ export function GoogleAuthProvider({ children }: { children: React.ReactNode }) 
     const [tokenExpiration, setTokenExpiration] = useState<number | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [tokenClient, setTokenClient] = useState<google.accounts.oauth2.TokenClient | null>(null);
+    const [sessionExpired, setSessionExpired] = useState(false);
 
     useEffect(() => {
         setIsAuthenticated(Boolean(accessToken));
@@ -112,7 +130,7 @@ export function GoogleAuthProvider({ children }: { children: React.ReactNode }) 
                     if (storedUser) {
                         try {
                             setUser(JSON.parse(storedUser));
-                        } catch (e) {
+                        } catch {
                             // Invalid JSON, re-fetch
                             fetchAndSetUser(storedToken);
                         }
@@ -143,6 +161,10 @@ export function GoogleAuthProvider({ children }: { children: React.ReactNode }) 
         return () => {
             // no-op
         };
+        // NOTE: handleLoginSuccess is intentionally excluded from deps.
+        // It's used in the tokenClient initialization callback which only runs once during script loading.
+        // Adding it would cause unnecessary re-initialization of the Google scripts on every render.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const fetchAndSetUser = async (accessToken: string) => {
@@ -209,23 +231,45 @@ export function GoogleAuthProvider({ children }: { children: React.ReactNode }) 
         setAccessToken(null);
         setTokenExpiration(null);
         if (gapi.client) gapi.client.setToken(null);
+        setSessionExpired(false);
     }, []);
 
+    const clearSessionExpired = useCallback(() => {
+        setSessionExpired(false);
+    }, []);
+
+    // Token expiration handling: Instead of silent refresh, set sessionExpired flag
+    // to prompt user for re-authentication (see AUTHENTICATION LIMITATION above)
     useEffect(() => {
-        if (!accessToken || !tokenExpiration || !tokenClient) return;
-        const refreshInMs = tokenExpiration - Date.now() - 60_000;
-        if (refreshInMs <= 0) {
-            tokenClient.requestAccessToken({ prompt: "" });
-            return;
+        if (!accessToken || !tokenExpiration) return;
+
+        const checkExpiration = () => {
+            const now = Date.now();
+            // Set expired 1 minute before actual expiration for buffer
+            if (now >= tokenExpiration - 60_000) {
+                setSessionExpired(true);
+                // Clear the stored token since it's expired
+                localStorage.removeItem("google_access_token");
+                localStorage.removeItem("google_token_expiration");
+                setAccessToken(null);
+                setTokenExpiration(null);
+                if (gapi.client) gapi.client.setToken(null);
+            }
+        };
+
+        // Check immediately in case already expired
+        checkExpiration();
+
+        // Also set a timer to check when it should expire
+        const timeUntilExpiry = tokenExpiration - Date.now() - 60_000;
+        if (timeUntilExpiry > 0) {
+            const timeoutId = window.setTimeout(checkExpiration, timeUntilExpiry);
+            return () => window.clearTimeout(timeoutId);
         }
-        const timeoutId = window.setTimeout(() => {
-            tokenClient.requestAccessToken({ prompt: "" });
-        }, refreshInMs);
-        return () => window.clearTimeout(timeoutId);
-    }, [accessToken, tokenExpiration, tokenClient]);
+    }, [accessToken, tokenExpiration]);
 
     return (
-        <GoogleAuthContext.Provider value={{ isAuthenticated, user, accessToken, login, logout, isLoading, tokenClient }}>
+        <GoogleAuthContext.Provider value={{ isAuthenticated, user, accessToken, login, logout, isLoading, tokenClient, sessionExpired, clearSessionExpired }}>
             {children}
         </GoogleAuthContext.Provider>
     );

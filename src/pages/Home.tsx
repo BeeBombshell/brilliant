@@ -15,7 +15,7 @@ export default function Home() {
     <div className="flex h-screen overflow-hidden bg-background text-foreground relative">
       {/* Chat Sidebar - Desktop: fixed width, Mobile: Overlay */}
       <div className={`
-        fixed inset-y-0 left-0 z-40 flex w-full flex-col border-r bg-background/95 backdrop-blur-sm transition-transform duration-300 ease-in-out md:static md:w-[300px] lg:w-[360px] md:translate-x-0 overflow-hidden
+        fixed inset-y-0 left-0 z-40 flex w-full flex-col border-r bg-background/95 backdrop-blur-sm transition-transform duration-300 ease-in-out md:static md:w-[350px] lg:w-[450px] md:translate-x-0 overflow-hidden
         ${showChat ? "translate-x-0" : "-translate-x-full"}
       `}>
         <ChatPane key={threadId || "default"} onClose={() => setShowChat(false)} />

@@ -230,13 +230,6 @@ export function CalendarWeekView() {
       <div ref={scrollContainerRef} className="flex h-full flex-col overflow-auto bg-background">
         {/* Sticky header section */}
         <div className="sticky top-0 z-40 bg-background">
-          {/* Multi-day events row */}
-          <MultiDayEventsRow
-            events={events}
-            selectedDate={selectedDate}
-            onEventClick={(id) => setSelectedEventId(id)}
-          />
-
           {/* Day names row */}
           <div className="flex">
             <div className="sticky left-0 z-30 w-18 flex-none border-b border-r bg-background" />
@@ -252,6 +245,13 @@ export function CalendarWeekView() {
               ))}
             </div>
           </div>
+
+          {/* Multi-day events row */}
+          <MultiDayEventsRow
+            events={events}
+            selectedDate={selectedDate}
+            onEventClick={(id) => setSelectedEventId(id)}
+          />
         </div>
 
         <div className="flex min-w-fit flex-1">

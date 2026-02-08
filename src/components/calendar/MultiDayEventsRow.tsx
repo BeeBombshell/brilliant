@@ -32,8 +32,13 @@ export function MultiDayEventsRow({
       .map((event) => {
         const start = parseISO(event.startDate);
         const end = parseISO(event.endDate);
+
+        // If event ends at midnight, treat it as ending the previous day for visual display
+        const isMidnightEnd = end.getHours() === 0 && end.getMinutes() === 0 && end.getSeconds() === 0 && end.getMilliseconds() === 0;
+        const displayEnd = isMidnightEnd ? new Date(end.getTime() - 1) : end;
+
         const adjustedStart = isBefore(start, weekStart) ? weekStart : start;
-        const adjustedEnd = isAfter(end, weekEnd) ? weekEnd : end;
+        const adjustedEnd = isAfter(displayEnd, weekEnd) ? weekEnd : displayEnd;
         const startIndex = differenceInDays(adjustedStart, weekStart);
         const endIndex = differenceInDays(adjustedEnd, weekStart);
 
@@ -100,7 +105,7 @@ export function MultiDayEventsRow({
       <div className="flex flex-1 border-b bg-background">
         {weekDays.map((day, dayIndex) => {
           return (
-            <div key={day.toISOString()} className="flex flex-col gap-1 py-1 min-h-[100px] min-w-[140px] flex-1 border-r last:border-r-0 bg-background">
+            <div key={day.toISOString()} className="flex flex-col gap-1 py-1 min-h-0 min-w-[140px] flex-1 border-r last:border-r-0 bg-background">
               {visibleRows.map((row, rowIndex) => {
                 const event = row.find((e) => e.startIndex <= dayIndex && e.endIndex >= dayIndex);
 

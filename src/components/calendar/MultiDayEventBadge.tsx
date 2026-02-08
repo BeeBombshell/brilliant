@@ -43,8 +43,11 @@ export function MultiDayEventBadge({
   onClick,
   className,
 }: MultiDayEventBadgeProps) {
+  const startDate = parseISO(event.startDate);
+  const isMidnightStart = startDate.getHours() === 0 && startDate.getMinutes() === 0 && startDate.getSeconds() === 0 && startDate.getMilliseconds() === 0;
+
   const showTitle = position === "first" || position === "none";
-  const showTime = position === "first" || position === "none";
+  const showTime = (position === "first" || position === "none") && !isMidnightStart;
 
   return (
     <button
@@ -67,7 +70,7 @@ export function MultiDayEventBadge({
       </div>
       {showTime && (
         <span className="text-xs">
-          {format(parseISO(event.startDate), "h:mm a")}
+          {format(startDate, "h:mm a")}
         </span>
       )}
     </button>

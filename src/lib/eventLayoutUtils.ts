@@ -8,6 +8,7 @@ import {
   isSameDay,
   startOfMonth,
   endOfMonth,
+  addDays,
 } from "date-fns";
 import type { CalendarEvent, MultiDayPosition, EventColumn, BlockStyle } from "@/types/calendar";
 import { isSameCalendarDay, getDaysBetween } from "./dateUtils";
@@ -16,7 +17,30 @@ import { isSameCalendarDay, getDaysBetween } from "./dateUtils";
  * Detects if an event spans multiple days
  */
 export function isMultiDayEvent(event: CalendarEvent): boolean {
-  return !isSameCalendarDay(event.startDate, event.endDate);
+  const start = typeof event.startDate === "string" ? parseISO(event.startDate) : event.startDate;
+  const end = typeof event.endDate === "string" ? parseISO(event.endDate) : event.endDate;
+
+  // Check if end is exactly midnight
+  if (end.getHours() === 0 && end.getMinutes() === 0 && end.getSeconds() === 0 && end.getMilliseconds() === 0) {
+    // If ends at midnight, subtract 1ms to check if it's the same day
+    const adjustedEnd = new Date(end.getTime() - 1);
+    const isDifferentDay = !isSameCalendarDay(start, adjustedEnd);
+
+    if (isDifferentDay) return true;
+
+    // If same calendar day (e.g. 00:00 -> 00:00 next day), check if it's a full 24h event
+    // This catches "all day" events (12 AM - 12 AM) to put them in the top row
+    const duration = end.getTime() - start.getTime();
+    const isMidnightStart = start.getHours() === 0 && start.getMinutes() === 0 && start.getSeconds() === 0 && start.getMilliseconds() === 0;
+
+    if (isMidnightStart && duration >= 86400000) {
+      return true;
+    }
+
+    return false;
+  }
+
+  return !isSameCalendarDay(start, end);
 }
 
 /**
@@ -184,7 +208,7 @@ export function getEventBlockStyle(
   const startDate = parseISO(event.startDate);
   const endDate = parseISO(event.endDate);
   const dayStart = startOfDay(day);
-  const dayEnd = endOfDay(day);
+  const dayEnd = addDays(dayStart, 1);
 
   // Clamp event to day boundaries
   const eventStart = startDate < dayStart ? dayStart : startDate;
@@ -293,7 +317,12 @@ export function calculateMonthEventSlots(
  */
 export function getMultiDayPosition(event: CalendarEvent, currentDay: Date): MultiDayPosition {
   const eventStart = parseISO(event.startDate);
-  const eventEnd = parseISO(event.endDate);
+  let eventEnd = parseISO(event.endDate);
+
+  // If ends at midnight, subtract 1ms to treat as ending on the previous day for visual formatting
+  if (eventEnd.getHours() === 0 && eventEnd.getMinutes() === 0 && eventEnd.getSeconds() === 0 && eventEnd.getMilliseconds() === 0) {
+    eventEnd = new Date(eventEnd.getTime() - 1);
+  }
 
   if (isSameDay(currentDay, eventStart) && isSameDay(currentDay, eventEnd)) {
     return "none";

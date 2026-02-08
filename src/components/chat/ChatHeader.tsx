@@ -11,9 +11,9 @@ interface ChatHeaderProps {
 export function ChatHeader({ threadHistoryMenu, onClose }: ChatHeaderProps) {
   return (
     <div className="flex shrink-0 items-center justify-between border-b px-3 h-[60px] bg-background/50 backdrop-blur-sm">
-      <div className="flex items-center gap-2 min-w-0">
-        <img src="/brilliant.svg" alt="Brilliant Logo" className="size-5 shrink-0" />
-        <span className="text-[15px] font-bold tracking-tight text-foreground truncate">
+      <div className="flex items-center gap-2.5 min-w-0">
+        <img src="/brilliant.svg" alt="Brilliant Logo" className="size-7 shrink-0" />
+        <span className="font-semibold text-base">
           Brilliant
         </span>
       </div>

@@ -85,40 +85,40 @@ export function CalendarShell({ children }: { children: React.ReactNode }) {
 
   return (
     <Card className="flex h-full flex-col border-none shadow-none">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b px-4 sm:px-6 py-3">
+      <div className="flex shrink-0 h-[60px] flex-col sm:flex-row items-center justify-between gap-4 border-b px-4 sm:px-6">
         <div className="flex flex-col sm:flex-row gap-3 sm:items-center flex-wrap">
           <div className="flex items-center gap-3">
             <CalendarDateIcon date={new Date()} onClick={goToday} />
-            <div className="space-y-0.5">
+            <div>
               <div className="flex items-center gap-2">
-                <span className="text-lg font-semibold">
+                <span className="text-base font-semibold">
                   {format(selectedDate, "MMMM yyyy")}
                 </span>
-                <Badge variant="outline" className="px-1.5">
+                <Badge variant="outline" className="px-1.5 h-5 text-[10px]">
                   {events.length} events
                 </Badge>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 <Button
                   variant="outline"
                   size="icon"
-                  className="h-[26px] w-[26px]"
+                  className="h-[18px] w-[18px] rounded-md"
                   onClick={goPrevious}
                   aria-label="Previous"
                 >
-                  <IconChevronLeft size={18} />
+                  <IconChevronLeft size={12} />
                 </Button>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   {getRangeText(view, selectedDate)}
                 </p>
                 <Button
                   variant="outline"
                   size="icon"
-                  className="h-[26px] w-[26px]"
+                  className="h-[18px] w-[18px] rounded-md"
                   onClick={goNext}
                   aria-label="Next"
                 >
-                  <IconChevronRight size={18} />
+                  <IconChevronRight size={12} />
                 </Button>
               </div>
             </div>
@@ -176,8 +176,8 @@ export function CalendarShell({ children }: { children: React.ReactNode }) {
                 <IconCalendarMonth size={16} />
               </Button>
             </div>
-            <Button variant="default" size="sm" 
-            onClick={createQuickEvent}>
+            <Button variant="default" size="sm"
+              onClick={createQuickEvent}>
               Event
             </Button>
           </div>

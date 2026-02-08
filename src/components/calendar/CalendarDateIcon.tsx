@@ -14,14 +14,14 @@ export function CalendarDateIcon({ date, className = "", variant = "page", onCli
   if (variant === "circle") {
     return (
       <div
-        className={`flex size-12 flex-col items-center justify-center rounded-full border-2 border-border bg-background p-2 ${className}`}
+        className={`flex size-10 flex-col items-center justify-center rounded-full border-2 border-border bg-background p-1.5 ${className}`}
         onClick={onClick}
       >
         <div className="flex flex-col items-center justify-center">
-          <span className="text-[0.5rem] font-medium leading-none text-muted-foreground">
+          <span className="text-[0.45rem] font-medium leading-none text-muted-foreground">
             {monthShort}
           </span>
-          <span className="text-lg font-bold leading-none text-foreground">
+          <span className="text-base font-bold leading-none text-foreground">
             {dayNumber}
           </span>
         </div>
@@ -31,16 +31,16 @@ export function CalendarDateIcon({ date, className = "", variant = "page", onCli
 
   // Page variant - traditional calendar icon
   return (
-    <div className={`flex flex-col overflow-hidden rounded-md border ${className}`} onClick={onClick}>
+    <div className={`flex size-10 flex-col overflow-hidden rounded-md border shrink-0 ${className} cursor-pointer hover:border-primary/50 transition-colors`} onClick={onClick}>
       {/* Calendar header */}
-      <div className="bg-primary py-0.5 px-5 text-center">
-        <span className="text-[0.6rem] font-bold leading-tight text-primary-foreground">
+      <div className="bg-primary/10 py-1 px-1 text-center border-b border-primary/10 shrink-0">
+        <span className="text-[0.55rem] font-bold leading-none text-primary block">
           {monthShort}
         </span>
       </div>
       {/* Calendar body */}
-      <div className="flex size-10 px-5 items-center justify-center bg-background w-full">
-        <span className="text-xl font-bold leading-none text-foreground">
+      <div className="flex flex-1 items-center justify-center bg-background">
+        <span className="text-base font-bold leading-none text-foreground">
           {dayNumber}
         </span>
       </div>

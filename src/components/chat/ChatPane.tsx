@@ -362,7 +362,7 @@ export function ChatPane({ onClose }: ChatPaneProps) {
     <Button
       variant="ghost"
       size="icon"
-      className="size-8"
+      className="size-7 hover:bg-muted"
       title="Thread History"
     >
       <IconMenu2 size={18} />
@@ -377,10 +377,10 @@ export function ChatPane({ onClose }: ChatPaneProps) {
             threadsHistory={threadHistoryItems}
             activeThreadId={threadId}
             onSelectThread={switchToThread}
+            onNewThread={handleNewChat}
             trigger={historyMenuTrigger}
           />
         )}
-        onNewChat={handleNewChat}
         onClose={onClose}
       />
 

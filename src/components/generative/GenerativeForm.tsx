@@ -1,9 +1,9 @@
-import { useState, useId, useCallback, useMemo, useEffect, useRef } from "react";
+import { useState, useId, useCallback, useMemo } from "react";
 import { z } from "zod";
-import { useTamboComponentState, useTamboCurrentMessage, useTamboThread } from "@tambo-ai/react";
+import { useTamboComponentState, useTamboThread } from "@tambo-ai/react";
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
-import { IconLoader2 } from "@tabler/icons-react";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -361,15 +361,9 @@ export function GenerativeForm({
     // which handleChange needs: setValues(prev => ({ ...prev, [id]: val }))
     const [values, setValues] = useState<Record<string, string>>(initialValues);
     const [submitted, setSubmitted] = useTamboComponentState<boolean>("submitted", false);
-    const [submitting, setSubmitting] = useState(false);
-    const [queued, setQueued] = useState(false);
-    const [pendingMessage, setPendingMessage] = useState<string | null>(null);
     const [errors, setErrors] = useState<Record<string, string>>({});
 
-    const sendingRef = useRef(false);
-
-    const { sendThreadMessage, isIdle, switchCurrentThread, thread } = useTamboThread();
-    const currentMessage = useTamboCurrentMessage();
+    const { sendThreadMessage } = useTamboThread();
 
     const handleChange = useCallback((fieldId: string, value: string) => {
         setValues((prev) => ({ ...prev, [fieldId]: value }));
@@ -413,52 +407,11 @@ export function GenerativeForm({
         return newErrors;
     }, [fields, values]);
 
-    useEffect(() => {
-        if (!pendingMessage) return;
-        if (!isIdle) return;
-        if (sendingRef.current) return;
 
-        const targetThreadId = currentMessage?.threadId;
-        if (targetThreadId && thread?.id && thread.id !== targetThreadId) {
-            switchCurrentThread(targetThreadId);
-            return;
-        }
-
-        const messageToSend = pendingMessage;
-        setPendingMessage(null);
-        setQueued(false);
-        setSubmitting(true);
-        sendingRef.current = true;
-
-        let cancelled = false;
-        const send = async () => {
-            try {
-                await sendThreadMessage(messageToSend, { streamResponse: true });
-                if (!cancelled) {
-                    setSubmitted(true);
-                }
-            } catch (err) {
-                console.error("Failed to send form submission to thread:", err);
-            } finally {
-                if (!cancelled) {
-                    setSubmitting(false);
-                    setQueued(false);
-                }
-                sendingRef.current = false;
-            }
-        };
-
-        send();
-
-        return () => {
-            cancelled = true;
-        };
-    }, [pendingMessage, isIdle, currentMessage?.threadId, thread?.id, switchCurrentThread, sendThreadMessage, setSubmitted]);
 
     const handleSubmit = useCallback(
         (e: React.FormEvent) => {
             e.preventDefault();
-            if (submitting) return;
             const validationErrors = validate();
             if (Object.keys(validationErrors).length > 0) {
                 setErrors(validationErrors);
@@ -471,10 +424,10 @@ export function GenerativeForm({
                 .join("\n");
 
             const message = `Form "${title ?? "Untitled"}" submitted with the following responses:\n${summary}`;
-            setPendingMessage(message);
-            setQueued(true);
+            sendThreadMessage(message, { streamResponse: true });
+            setSubmitted(true);
         },
-        [submitting, validate, fields, values, title]
+        [validate, setSubmitted, fields, values, title, sendThreadMessage]
     );
 
     const isFormReady = useMemo(() => {
@@ -548,18 +501,6 @@ export function GenerativeForm({
                         })}
                     </div>
                 </CardContent>
-                <CardFooter className="px-0 bg-transparent border-0">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                            setSubmitted(false);
-                            setValues(initialValues);
-                        }}
-                    >
-                        Fill Again
-                    </Button>
-                </CardFooter>
             </Card>
         );
     }
@@ -577,7 +518,7 @@ export function GenerativeForm({
                 {description && <CardDescription>{description}</CardDescription>}
             </CardHeader>
             <form onSubmit={handleSubmit}>
-                <CardContent className="px-0">
+                <CardContent className="px-0 pt-4">
                     {hasSections ? (
                         <div className="space-y-8">
                             {sections.map((section, idx) => {
@@ -621,18 +562,11 @@ export function GenerativeForm({
                         <div className={gridClass}>{fields.map(renderField)}</div>
                     )}
                 </CardContent>
-                {isFormReady && (
+                {isFormReady && !submitted && (
                     <CardFooter className="px-0 bg-transparent border-0">
-                        {submitting || queued ? (
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <IconLoader2 className="size-4 animate-spin" />
-                                {submitting ? "Submitting…" : "Queued"}
-                            </div>
-                        ) : (
-                            <Button type="submit" className="w-full sm:w-auto">
-                                {submitLabel ?? "Submit"}
-                            </Button>
-                        )}
+                        <Button type="submit" className="w-full sm:w-auto">
+                            {submitLabel ?? "Submit"}
+                        </Button>
                     </CardFooter>
                 )}
             </form>

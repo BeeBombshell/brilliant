@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { newEventDraftAtom } from "@/state/calendarAtoms";
 import { useCalendarActions } from "@/hooks/useCalendarActions";
 import { dateTimeHelpers, eventColorConfig } from "@/lib/calendarUtils";
@@ -189,20 +190,16 @@ export function NewEventDialog() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-xs text-muted-foreground">Start</label>
-                <Input
-                  type="datetime-local"
+                <DateTimePicker
                   value={form.startInput}
-                  onChange={event => form.setStartInput(event.target.value)}
-                  className="text-sm"
+                  onChange={v => form.setStartInput(v)}
                 />
               </div>
               <div className="space-y-2">
                 <label className="text-xs text-muted-foreground">End</label>
-                <Input
-                  type="datetime-local"
+                <DateTimePicker
                   value={form.endInput}
-                  onChange={event => form.setEndInput(event.target.value)}
-                  className="text-sm"
+                  onChange={v => form.setEndInput(v)}
                 />
               </div>
             </div>

@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Field, FieldDescription, FieldError } from "@/components/ui/field";
+import { DateTimePicker } from "@/components/ui/datetime-picker";
 
 // --- Field type definition ---
 // Each field the AI generates matches this shape.
@@ -312,9 +313,12 @@ function FormFieldRenderer({
             {/* Render the appropriate input */}
             {(field.type === "text" || field.type === "email" || field.type === "number" ||
                 field.type === "tel" || field.type === "url" || field.type === "password" ||
-                field.type === "date" || field.type === "time" || field.type === "datetime-local") && (
+                field.type === "date" || field.type === "time") && (
                     <TextInputField field={field} value={value} onChange={onChange} />
                 )}
+            {field.type === "datetime-local" && (
+                <DateTimePicker value={value} onChange={onChange} />
+            )}
             {field.type === "textarea" && (
                 <TextareaField field={field} value={value} onChange={onChange} />
             )}

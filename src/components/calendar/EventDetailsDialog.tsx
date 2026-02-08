@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { useCalendarActions } from "@/hooks/useCalendarActions";
 import { eventColorConfig, dateTimeHelpers } from "@/lib/calendarUtils";
 import { useEventForm } from "@/hooks/useEventForm";
@@ -161,11 +162,9 @@ export function EventDetailsDialog({ onClose }: EventDetailsDialogProps = {}) {
                     <IconClock size={16} />
                     Start
                   </label>
-                  <Input
-                    type="datetime-local"
+                  <DateTimePicker
                     value={form.startInput}
-                    onChange={e => form.setStartInput(e.target.value)}
-                    className="text-sm"
+                    onChange={v => form.setStartInput(v)}
                   />
                 </div>
                 <div className="space-y-2.5">
@@ -173,11 +172,9 @@ export function EventDetailsDialog({ onClose }: EventDetailsDialogProps = {}) {
                     <IconClock size={16} />
                     End
                   </label>
-                  <Input
-                    type="datetime-local"
+                  <DateTimePicker
                     value={form.endInput}
-                    onChange={e => form.setEndInput(e.target.value)}
-                    className="text-sm"
+                    onChange={v => form.setEndInput(v)}
                   />
                 </div>
               </div>
@@ -323,17 +320,17 @@ export function EventDetailsDialog({ onClose }: EventDetailsDialogProps = {}) {
                       <span className="inline-flex items-center gap-1">
                         <IconRepeat size={12} />
                         {(() => {
-                        const rule = event.recurrence;
-                        if (!rule && event.isInstance) return "Recurring instance";
-                        if (!rule) return "";
-                        const freq = rule.frequency.charAt(0) + rule.frequency.slice(1).toLowerCase();
-                        const parts = [freq];
-                        if (rule.interval && rule.interval > 1) parts[0] = `Every ${rule.interval} ${freq.toLowerCase()}s`;
-                        if (rule.byDay?.length) parts.push(`on ${rule.byDay.join(", ")}`);
-                        if (rule.count) parts.push(`(${rule.count}×)`);
-                        if (rule.endDate) parts.push(`until ${format(parseISO(rule.endDate), "MMM d, yyyy")}`);
-                        return parts.join(" ");
-                      })()}
+                          const rule = event.recurrence;
+                          if (!rule && event.isInstance) return "Recurring instance";
+                          if (!rule) return "";
+                          const freq = rule.frequency.charAt(0) + rule.frequency.slice(1).toLowerCase();
+                          const parts = [freq];
+                          if (rule.interval && rule.interval > 1) parts[0] = `Every ${rule.interval} ${freq.toLowerCase()}s`;
+                          if (rule.byDay?.length) parts.push(`on ${rule.byDay.join(", ")}`);
+                          if (rule.count) parts.push(`(${rule.count}×)`);
+                          if (rule.endDate) parts.push(`until ${format(parseISO(rule.endDate), "MMM d, yyyy")}`);
+                          return parts.join(" ");
+                        })()}
                       </span>
                     </Badge>
                   )}

@@ -232,15 +232,16 @@ export function CalendarWeekView() {
         <div className="sticky top-0 z-40 bg-background">
           {/* Day names row */}
           <div className="flex">
-            <div className="sticky left-0 z-30 w-18 flex-none border-b border-r bg-background" />
+            <div className="sticky left-0 z-30 w-12 sm:w-18 flex-none border-b border-r bg-background" />
             <div className="flex flex-1">
               {days.map((day) => (
                 <div
                   key={`header-${day.toISOString()}`}
-                  className="flex h-10 min-w-35 flex-1 items-center justify-center border-b border-r bg-background text-xs font-medium last:border-r-0"
+                  className="flex h-10 min-w-[60px] sm:min-w-35 flex-1 items-center justify-center border-b border-r bg-background text-xs font-medium last:border-r-0"
                 >
-                  <span className="text-muted-foreground">{format(day, "EEE")}</span>
-                  <span className="ml-1 font-semibold">{format(day, "d")}</span>
+                  <span className="text-muted-foreground hidden sm:inline">{format(day, "EEE")}</span>
+                  <span className="text-muted-foreground sm:hidden">{format(day, "EEE").charAt(0)}</span>
+                  <span className="ml-0.5 sm:ml-1 font-semibold">{format(day, "d")}</span>
                 </div>
               ))}
             </div>
@@ -256,7 +257,7 @@ export function CalendarWeekView() {
 
         <div className="flex min-w-fit flex-1">
           {/* Hour labels column */}
-          <div className="sticky left-0 z-30 flex w-18 flex-none flex-col border-r bg-background">
+          <div className="sticky left-0 z-30 flex w-12 sm:w-18 flex-none flex-col border-r bg-background">
             {/* Empty spacer - hours start below the time grid */}
             <div className="text-right text-xs text-muted-foreground">
               {HOURS.map((hour, index) => (
@@ -337,7 +338,7 @@ export function CalendarWeekView() {
               return (
                 <div
                   key={day.toISOString()}
-                  className="min-w-35 flex-1 border-r last:border-r-0"
+                  className="min-w-[60px] sm:min-w-35 flex-1 border-r last:border-r-0"
                   data-day-index={index}
                 >
                   {/* Time grid */}

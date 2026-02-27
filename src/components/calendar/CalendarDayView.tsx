@@ -147,7 +147,7 @@ export function CalendarDayView() {
           {/* Multi-day events row */}
           {multiDayEvents.length > 0 && (
             <div className="flex border-b">
-              <div className="w-18 border-r" />
+              <div className="w-12 sm:w-18 border-r" />
               <div className="flex flex-1 flex-col gap-1 py-1 px-2">
                 {multiDayEvents.map(event => (
                   <MultiDayEventBadge
@@ -163,7 +163,7 @@ export function CalendarDayView() {
 
           <div className="flex min-w-full flex-1">
             {/* Hour labels column */}
-            <div className="sticky left-0 z-30 w-18 flex-none border-r bg-background text-right text-xs text-muted-foreground">
+            <div className="sticky left-0 z-30 w-12 sm:w-18 flex-none border-r bg-background text-right text-xs text-muted-foreground">
               {HOURS.map((hour, index) => (
                 <div key={hour} className="relative" style={{ height: `${HOUR_HEIGHT}px` }}>
                   {index !== 0 && (

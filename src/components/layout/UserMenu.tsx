@@ -40,12 +40,12 @@ export function UserMenu() {
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          className="flex items-center gap-2 h-auto py-1.5 pl-1.5 pr-3 bg-muted/80 dark:bg-muted hover:bg-muted rounded-xl border border-border/60 transition-colors shadow-sm"
+          className="flex items-center sm:gap-2 h-auto p-1 sm:py-1.5 sm:pl-1.5 sm:pr-3 bg-muted/80 dark:bg-muted hover:bg-muted rounded-xl border border-border/60 transition-colors shadow-sm"
         >
           {user?.picture ? (
-            <img src={user.picture} alt={user.name} className="size-8 rounded-full" />
+            <img src={user.picture} alt={user.name} className="size-6 sm:size-8 rounded-full" />
           ) : (
-            <div className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">
+            <div className="flex size-6 sm:size-8 items-center justify-center rounded-full bg-primary/10 text-[10px] sm:text-xs font-medium text-primary">
               {user?.name?.[0] || "U"}
             </div>
           )}

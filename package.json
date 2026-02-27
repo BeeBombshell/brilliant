@@ -13,6 +13,7 @@
     "@base-ui/react": "^1.1.0",
     "@fontsource-variable/inter": "^5.2.8",
     "@tabler/icons-react": "^3.36.1",
+    "@tailwindcss/typography": "^0.5.19",
     "@tailwindcss/vite": "^4.1.17",
     "@tambo-ai/react": "^0.73.1",
     "class-variance-authority": "^0.7.1",

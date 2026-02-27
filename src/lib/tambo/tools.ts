@@ -72,8 +72,16 @@ export const tamboTools: TamboTool<any, any, []>[] = [
             const store = getDefaultStore();
             const allEvents = store.get(eventsAtom);
 
-            const start = new Date(startDate);
-            const end = new Date(endDate);
+            // Defensive: if AI sends date-only string (no "T"), expand to full day
+            const ensureDateTime = (dateStr: string, fallbackTime: string) => {
+                if (!dateStr.includes('T')) {
+                    return new Date(`${dateStr}T${fallbackTime}`);
+                }
+                return new Date(dateStr);
+            };
+
+            const start = ensureDateTime(startDate, '00:00:00');
+            const end = ensureDateTime(endDate, '23:59:59');
 
             console.log('Searching for events between', start.toISOString(), 'and', end.toISOString());
             console.log('Total events in store:', allEvents.length);

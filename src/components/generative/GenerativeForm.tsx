@@ -1,5 +1,7 @@
 import { useState, useId, useCallback, useMemo } from "react";
 import { z } from "zod";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useTamboComponentState, useTamboThread } from "@tambo-ai/react";
 
 import { Button } from "@/components/ui/button";
@@ -154,7 +156,7 @@ function RadioField({
     onChange: (v: string) => void;
 }) {
     return (
-        <RadioGroup value={value} onValueChange={onChange} className="gap-2">
+        <RadioGroup value={value} onValueChange={onChange} className="grid gap-3">
             {field.options?.filter(opt => opt.value && opt.label).map((opt) => {
                 const optId = `${field.id ?? 'field'}-${opt.value}`;
                 const isSelected = value === opt.value;
@@ -163,16 +165,25 @@ function RadioField({
                         key={opt.value!}
                         htmlFor={optId}
                         className={`
-                            flex items-center gap-3 rounded-xl border px-4 py-3 cursor-pointer
-                            transition-all duration-200
+                            group relative flex items-center gap-3 rounded-xl border px-4 py-3 cursor-pointer
+                            transition-all duration-300 ease-out
                             ${isSelected
-                                ? 'border-primary/40 bg-primary/5 shadow-sm'
-                                : 'border-border hover:border-primary/20 hover:bg-muted/50'
+                                ? 'border-primary/50 bg-primary/[0.03] shadow-[0_0_20px_rgba(var(--primary),0.05)] ring-1 ring-primary/20'
+                                : 'border-border/50 hover:border-primary/30 hover:bg-muted/30'
                             }
                         `}
                     >
-                        <RadioGroupItem value={opt.value!} id={optId} />
-                        <span className="text-sm font-normal">{opt.label}</span>
+                        <div className={`
+                            flex size-5 shrink-0 items-center justify-center rounded-full border
+                            transition-all duration-300
+                            ${isSelected ? 'border-primary bg-primary' : 'border-muted-foreground/30 group-hover:border-primary/50'}
+                        `}>
+                            <RadioGroupItem value={opt.value!} id={optId} className="sr-only" />
+                            {isSelected && <div className="size-1.5 rounded-full bg-primary-foreground" />}
+                        </div>
+                        <span className={`text-sm font-medium transition-colors ${isSelected ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground'}`}>
+                            {opt.label}
+                        </span>
                     </label>
                 );
             })}
@@ -202,7 +213,7 @@ function CheckboxField({
         };
 
         return (
-            <div className="flex flex-col gap-2">
+            <div className="grid gap-3">
                 {field.options.filter(opt => opt.value && opt.label).map((opt) => {
                     const optId = `${field.id ?? 'field'}-${opt.value}`;
                     const isSelected = selected.includes(opt.value!);
@@ -211,20 +222,30 @@ function CheckboxField({
                             key={opt.value!}
                             htmlFor={optId}
                             className={`
-                                flex items-center gap-3 rounded-xl border px-4 py-3 cursor-pointer
-                                transition-all duration-200
+                                group relative flex items-center gap-4 rounded-xl border px-4 py-3 cursor-pointer
+                                transition-all duration-300 ease-out
                                 ${isSelected
-                                    ? 'border-primary/40 bg-primary/5 shadow-sm'
-                                    : 'border-border hover:border-primary/20 hover:bg-muted/50'
+                                    ? 'border-primary/50 bg-primary/[0.03] shadow-[0_0_20px_rgba(var(--primary),0.05)] ring-1 ring-primary/20'
+                                    : 'border-border/50 hover:border-primary/30 hover:bg-muted/30'
                                 }
                             `}
                         >
-                            <Checkbox
-                                id={optId}
-                                checked={isSelected}
-                                onCheckedChange={() => toggle(opt.value!)}
-                            />
-                            <span className="text-sm font-normal">{opt.label}</span>
+                            <div className={`
+                                flex size-5 shrink-0 items-center justify-center rounded-lg border
+                                transition-all duration-300
+                                ${isSelected ? 'border-primary bg-primary' : 'border-muted-foreground/30 group-hover:border-primary/50'}
+                            `}>
+                                <Checkbox
+                                    id={optId}
+                                    checked={isSelected}
+                                    onCheckedChange={() => toggle(opt.value!)}
+                                    className="sr-only"
+                                />
+                                {isSelected && <IconCheck size={14} className="text-primary-foreground" />}
+                            </div>
+                            <span className={`text-sm font-medium transition-colors ${isSelected ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground'}`}>
+                                {opt.label}
+                            </span>
                         </label>
                     );
                 })}
@@ -234,24 +255,35 @@ function CheckboxField({
 
     // Single boolean checkbox
     const cbId = field.id ?? 'checkbox';
+    const isChecked = value === "true";
     return (
         <label
             htmlFor={cbId}
             className={`
-                flex items-center gap-3 rounded-xl border px-4 py-3 cursor-pointer
-                transition-all duration-200
-                ${value === "true"
-                    ? 'border-primary/40 bg-primary/5 shadow-sm'
-                    : 'border-border hover:border-primary/20 hover:bg-muted/50'
+                group relative flex items-center gap-4 rounded-xl border px-4 py-3 cursor-pointer
+                transition-all duration-300 ease-out
+                ${isChecked
+                    ? 'border-primary/50 bg-primary/[0.03] shadow-[0_0_20px_rgba(var(--primary),0.05)] ring-1 ring-primary/20'
+                    : 'border-border/50 hover:border-primary/30 hover:bg-muted/30'
                 }
             `}
         >
-            <Checkbox
-                id={cbId}
-                checked={value === "true"}
-                onCheckedChange={(checked) => onChange(String(!!checked))}
-            />
-            <span className="text-sm font-normal">{field.label ?? 'Option'}</span>
+            <div className={`
+                flex size-5 shrink-0 items-center justify-center rounded-lg border
+                transition-all duration-300
+                ${isChecked ? 'border-primary bg-primary' : 'border-muted-foreground/30 group-hover:border-primary/50'}
+            `}>
+                <Checkbox
+                    id={cbId}
+                    checked={isChecked}
+                    onCheckedChange={(checked) => onChange(String(!!checked))}
+                    className="sr-only"
+                />
+                {isChecked && <IconCheck size={14} className="text-primary-foreground" />}
+            </div>
+            <span className={`text-sm font-medium transition-colors ${isChecked ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground'}`}>
+                {field.label ?? 'Option'}
+            </span>
         </label>
     );
 }
@@ -388,10 +420,10 @@ function FormProgress({ current, total }: { current: number; total: number }) {
                 <div
                     key={i}
                     className={`h-1 flex-1 rounded-full transition-all duration-500 ${i < current
-                            ? 'bg-primary'
-                            : i === current
-                                ? 'bg-primary/50'
-                                : 'bg-muted'
+                        ? 'bg-primary'
+                        : i === current
+                            ? 'bg-primary/50'
+                            : 'bg-muted'
                         }`}
                 />
             ))}
@@ -592,31 +624,39 @@ export function GenerativeForm({
     const totalSections = hasSections ? sections.length : 1;
 
     return (
-        <div className="w-full rounded-2xl border border-border/50 bg-card/50 backdrop-blur-sm overflow-hidden">
+        <div className="w-full rounded-[24px] border border-white/[0.08] bg-white/[0.03] backdrop-blur-md overflow-hidden shadow-2xl transition-all duration-500 hover:border-white/[0.12]">
             {/* Form header */}
-            <div className="p-5 border-b border-border/30">
-                <div className="flex items-start gap-3">
-                    <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                        <IconClipboard size={16} className="text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-sm leading-tight">{title}</h3>
-                        {description && (
-                            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{description}</p>
+            <div className="p-4 border-b border-white/[0.05] bg-white/[0.01]">
+                <div className="flex flex-col items-start gap-3">
+                    <div className="flex items-center gap-3">
+                        <div className="size-9 rounded-lg bg-primary/20 flex items-center justify-center shrink-0 mt-0.5 border border-primary/20 shadow-[0_0_15px_rgba(var(--primary),0.15)]">
+                            <IconClipboard size={18} className="text-primary" />
+                        </div>
+                        <h3 className="font-bold text-base leading-tight tracking-tight text-white/90">{title}</h3>
+                        {fields && (
+                            <Badge variant="secondary" className="bg-white/5 border-white/10 text-[10px] shrink-0 tabular-nums px-2 py-0.5 text-white/50">
+                                {fields.length} {fields.length === 1 ? 'field' : 'fields'}
+                            </Badge>
                         )}
                     </div>
-                    {fields && (
-                        <Badge variant="secondary" className="text-[10px] shrink-0 tabular-nums">
-                            {fields.length} {fields.length === 1 ? 'field' : 'fields'}
-                        </Badge>
-                    )}
+                    <div className="flex-1 min-w-0">
+                        {description && (
+                            <div className="mt-3 rounded-xl bg-white/[0.03] p-3.5 border border-white/[0.05] ring-1 ring-white/[0.05] shadow-inner">
+                                <div className="prose prose-sm prose-invert max-w-none text-white/60 leading-relaxed text-[13px]">
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                        {description}
+                                    </ReactMarkdown>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
                 {hasSections && <div className="mt-4"><FormProgress current={0} total={totalSections} /></div>}
             </div>
 
             {/* Form body */}
             <form onSubmit={handleSubmit}>
-                <div className="p-5">
+                <div className="p-4">
                     {hasSections ? (
                         <div className="space-y-8">
                             {sections.map((section, idx) => {
@@ -635,7 +675,7 @@ export function GenerativeForm({
                                                     {section.title ?? 'Section'}
                                                 </h4>
                                                 {section.description && (
-                                                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                                                    <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">
                                                         {section.description}
                                                     </p>
                                                 )}
@@ -673,12 +713,16 @@ export function GenerativeForm({
 
                 {/* Form footer */}
                 {isFormReady && !submitted && (
-                    <div className="px-5 pb-5 pt-2">
+                    <div className="px-4 pb-4 pt-1">
                         <Button
                             type="submit"
-                            className="w-full sm:w-auto rounded-xl px-6 h-10 font-medium transition-all duration-200 hover:shadow-md"
+                            className="group relative w-full sm:w-auto overflow-hidden rounded-xl px-6 h-10 font-bold text-sm transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-primary/20"
                         >
-                            {submitLabel ?? "Submit"}
+                            <span className="relative z-10 flex items-center gap-2">
+                                {submitLabel ?? "Submit"}
+                                <IconSparkles size={14} className="opacity-0 group-hover:opacity-100 transition-opacity animate-pulse" />
+                            </span>
+                            <div className="absolute inset-0 bg-gradient-to-r from-primary to-primary/80 transition-opacity group-hover:opacity-90" />
                         </Button>
                     </div>
                 )}

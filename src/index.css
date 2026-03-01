@@ -41,6 +41,12 @@
     --sidebar-accent-foreground: oklch(0.20 0.02 264);
     --sidebar-border: oklch(0.88 0.012 264);
     --sidebar-ring: oklch(0.55 0.18 264);
+    --container: oklch(0.98 0 247);
+    --backdrop: oklch(0.25 0.07 252 / 0.25);
+    --muted-backdrop: oklch(0.25 0.07 252 / 0.1);
+    --panel-left-width: 500px;
+    --panel-right-width: 500px;
+    --sidebar-width: 3rem;
 }
 
 .dark {
@@ -76,6 +82,13 @@
     --sidebar-accent-foreground: oklch(0.96 0.004 264);
     --sidebar-border: oklch(0.28 0.012 264);
     --sidebar-ring: oklch(0.65 0.15 264);
+    --container: oklch(0.22 0 0);
+    --backdrop: oklch(0.85 0 0 / 0.15);
+    --muted-backdrop: oklch(0.85 0 0 / 0.08);
+    --radius: 0.5rem;
+    --panel-left-width: 500px;
+    --panel-right-width: 500px;
+    --sidebar-width: 3rem;
 }
 
 @theme inline {
@@ -126,6 +139,9 @@
     --radius-2xl: calc(var(--radius) + 8px);
     --radius-3xl: calc(var(--radius) + 12px);
     --radius-4xl: calc(var(--radius) + 16px);
+  --color-container: var(--container);
+  --color-backdrop: var(--backdrop);
+  --color-muted-backdrop: var(--muted-backdrop);
 }
 
 @layer base {

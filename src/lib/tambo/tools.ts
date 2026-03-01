@@ -5,6 +5,8 @@ import { eventsAtom } from '@/state/calendarAtoms';
 import { executeCalendarActionAtom } from '@/state/calendarEffects';
 import type { CalendarEvent, CalendarAction, EventColor, RecurrenceRule } from '@/types/calendar';
 import type { TamboTool } from '@tambo-ai/react';
+import { expandAllRecurringEvents } from '@/lib/dateUtils';
+
 import {
     CreateEventSchema,
     CreateEventOutputSchema,
@@ -86,13 +88,18 @@ export const tamboTools: TamboTool<any, any, []>[] = [
             console.log('Searching for events between', start.toISOString(), 'and', end.toISOString());
             console.log('Total events in store:', allEvents.length);
 
-            const filtered = allEvents.filter(e => {
+            // Expand recurring events into concrete instances for this range
+            const expandedEvents = expandAllRecurringEvents(allEvents, start, end);
+            console.log('Total events after expansion:', expandedEvents.length);
+
+            const filtered = expandedEvents.filter(e => {
                 const eStart = new Date(e.startDate);
                 const eEnd = new Date(e.endDate);
 
                 // Overlap condition: (StartA < EndB) && (EndA > StartB)
                 return (eStart < end) && (eEnd > start);
             });
+
 
             const eventList = filtered
                 .map(e => `${e.title} [${new Date(e.startDate).getHours()}:${String(new Date(e.startDate).getMinutes()).padStart(2, '0')}]`)
@@ -116,7 +123,9 @@ export const tamboTools: TamboTool<any, any, []>[] = [
         tool: async (patch: z.infer<typeof UpdateEventSchema>) => {
             const store = getDefaultStore();
             const allEvents = store.get(eventsAtom);
-            const existing = allEvents.find(e => e.id === patch.id);
+            // Handle instance IDs (e.g., eventId_2024-03-01)
+            const masterId = patch.id.includes('_') ? patch.id.split('_')[0] : patch.id;
+            const existing = allEvents.find(e => e.id === masterId);
 
             if (!existing) {
                 return { success: false, message: `Event with ID ${patch.id} not found` };
@@ -144,7 +153,7 @@ export const tamboTools: TamboTool<any, any, []>[] = [
                 payload: { before: existing, after: updated },
             };
 
-            store.set(eventsAtom, (prev) => prev.map(e => e.id === patch.id ? updated : e));
+            store.set(eventsAtom, (prev) => prev.map(e => e.id === masterId ? updated : e));
             store.set(executeCalendarActionAtom, action);
 
             return {
@@ -162,7 +171,9 @@ export const tamboTools: TamboTool<any, any, []>[] = [
         tool: async ({ id }: z.infer<typeof DeleteEventSchema>) => {
             const store = getDefaultStore();
             const allEvents = store.get(eventsAtom);
-            const existing = allEvents.find(e => e.id === id);
+            // Handle instance IDs (e.g., eventId_2024-03-01)
+            const masterId = id.includes('_') ? id.split('_')[0] : id;
+            const existing = allEvents.find(e => e.id === masterId);
 
             if (!existing) {
                 return { success: false, message: `Event with ID ${id} not found` };
@@ -176,7 +187,7 @@ export const tamboTools: TamboTool<any, any, []>[] = [
                 payload: { event: existing },
             };
 
-            store.set(eventsAtom, (prev) => prev.filter(e => e.id !== id));
+            store.set(eventsAtom, (prev) => prev.filter(e => e.id !== masterId));
             store.set(executeCalendarActionAtom, action);
 
             return {
@@ -194,11 +205,12 @@ export const tamboTools: TamboTool<any, any, []>[] = [
         tool: async ({ actions, explanation }: z.infer<typeof ReorganizeEventsSchema>) => {
             const store = getDefaultStore();
             const timestamp = new Date().toISOString();
-            let actionCount = 0;
+            const calendarActions: CalendarAction[] = [];
+
+            // Process all actions against a local copy of events to ensure consistency
+            let nextEvents = [...store.get(eventsAtom)];
 
             for (const actionData of actions) {
-                const currentEvents = store.get(eventsAtom);
-
                 if (actionData.type === 'create') {
                     const event: CalendarEvent = {
                         id: uuid(),
@@ -212,19 +224,19 @@ export const tamboTools: TamboTool<any, any, []>[] = [
                         meetingLinkRequested: actionData.event.meetingLinkRequested,
                         meta: { source: 'ai' }
                     };
-                    const action: CalendarAction = {
+                    calendarActions.push({
                         id: uuid(),
                         type: 'ADD_EVENT',
                         timestamp,
                         source: 'ai',
                         explanation,
                         payload: { event },
-                    };
-                    store.set(eventsAtom, (prev) => [...prev, event]);
-                    store.set(executeCalendarActionAtom, action);
+                    });
+                    nextEvents.push(event);
                 }
                 else if (actionData.type === 'update') {
-                    const existing = currentEvents.find(e => e.id === actionData.patch.id);
+                    const masterId = actionData.patch.id.includes('_') ? actionData.patch.id.split('_')[0] : actionData.patch.id;
+                    const existing = nextEvents.find(e => e.id === masterId);
                     if (existing) {
                         const updated: CalendarEvent = {
                             ...existing,
@@ -238,40 +250,42 @@ export const tamboTools: TamboTool<any, any, []>[] = [
                             meetingLinkRequested: actionData.patch.meetingLinkRequested ?? existing.meetingLinkRequested,
                             meta: { source: 'ai' }
                         };
-                        const action: CalendarAction = {
+                        calendarActions.push({
                             id: uuid(),
                             type: 'UPDATE_EVENT',
                             timestamp,
                             source: 'ai',
                             explanation,
                             payload: { before: existing, after: updated },
-                        };
-                        store.set(eventsAtom, (prev) => prev.map(e => e.id === actionData.patch.id ? updated : e));
-                        store.set(executeCalendarActionAtom, action);
+                        });
+                        nextEvents = nextEvents.map(e => e.id === masterId ? updated : e);
                     }
                 }
                 else if (actionData.type === 'delete') {
-                    const existing = currentEvents.find(e => e.id === actionData.id);
+                    const masterId = actionData.id.includes('_') ? actionData.id.split('_')[0] : actionData.id;
+                    const existing = nextEvents.find(e => e.id === masterId);
                     if (existing) {
-                        const action: CalendarAction = {
+                        calendarActions.push({
                             id: uuid(),
                             type: 'DELETE_EVENT',
                             timestamp,
                             source: 'ai',
                             explanation,
                             payload: { event: existing },
-                        };
-                        store.set(eventsAtom, (prev) => prev.filter(e => e.id !== actionData.id));
-                        store.set(executeCalendarActionAtom, action);
+                        });
+                        nextEvents = nextEvents.filter(e => e.id !== masterId);
                     }
                 }
-                actionCount++;
             }
+
+            // Apply all state changes and trigger side effects in one go
+            store.set(eventsAtom, nextEvents);
+            store.set(executeCalendarActionAtom, calendarActions);
 
             return {
                 success: true,
-                message: `Reorganized schedule with ${actionCount} changes.`,
-                actionCount,
+                message: `Reorganized schedule with ${calendarActions.length} changes.`,
+                actionCount: calendarActions.length,
             };
         }
     },

@@ -1,9 +1,9 @@
-import { useEffect } from "react";
-import { useAtom, useAtomValue } from "jotai";
+import { useEffect, useCallback } from "react";
+import { useAtom } from "jotai";
 import { v4 as uuid } from "uuid";
 import { useGoogleAuth } from "@/contexts/GoogleAuthContext";
-import { calendarActionEffectAtom } from "@/state/calendarEffects";
-import { eventsAtom } from "@/state/calendarAtoms";
+import { calendarActionQueueAtom } from "@/state/calendarEffects";
+import { eventsAtom, pendingDeletesAtom } from "@/state/calendarAtoms";
 import type { CalendarEvent, CalendarAction, RecurrenceRule, EventAttendee, EventPerson, EventColor } from "@/types/calendar";
 
 const googleColorIdToEventColor: Record<string, EventColor> = {
@@ -169,7 +169,32 @@ const withRetry = async <T,>(fn: () => Promise<T>, retries = 3, delay = 1000): P
 export function GoogleCalendarSync() {
     const { isAuthenticated, isLoading } = useGoogleAuth();
     const [, setEvents] = useAtom(eventsAtom);
-    const latestAction = useAtomValue(calendarActionEffectAtom);
+    const [actionQueue, setActionQueue] = useAtom(calendarActionQueueAtom);
+    const [pendingDeletes, setPendingDeletes] = useAtom(pendingDeletesAtom);
+
+    // Map a Google Event to our local CalendarEvent format
+    const mapGoogleToLocal = useCallback((gEvent: any, existingId?: string): CalendarEvent => {
+        const start = gEvent.start?.dateTime || gEvent.start?.date;
+        const end = gEvent.end?.dateTime || gEvent.end?.date;
+        const recurrence = parseRecurrence(gEvent.recurrence);
+
+        return {
+            id: existingId || uuid(),
+            title: gEvent.summary || "(No Title)",
+            description: gEvent.description,
+            meetingLink: extractMeetingLink(gEvent),
+            location: gEvent.location,
+            startDate: start,
+            endDate: end,
+            color: googleColorIdToEventColor[String(gEvent.colorId)] ?? "blue",
+            meta: { source: "system" },
+            googleEventId: gEvent.id,
+            organizer: mapPerson(gEvent.organizer),
+            creator: mapPerson(gEvent.creator),
+            attendees: mapAttendees(gEvent.attendees),
+            recurrence,
+        };
+    }, []);
 
     // Sync from Google on mount/auth and poll every 60s
     useEffect(() => {
@@ -222,65 +247,77 @@ export function GoogleCalendarSync() {
                     ...recurringMasters.values(),
                 ];
 
+                const googleIdsInResponse = new Set(googleEvents.map(g => g.id));
+
                 setEvents(currentEvents => {
-                    // Create a map of existing events by googleEventId for quick lookup
-                    const existingMap = new Map(currentEvents.map(e => [e.googleEventId, e]));
-                    const newEvents = [...currentEvents];
+                    const existingGoogleIdMap = new Map(
+                        currentEvents.filter(e => e.googleEventId).map(e => [e.googleEventId!, e])
+                    );
+
+                    const resolvedEvents: CalendarEvent[] = [];
                     let hasChanges = false;
 
-                    googleEvents.forEach((gEvent: any) => {
-                        const existingEvent = existingMap.get(gEvent.id);
+                    // 1. Process events coming from Google
+                    googleEvents.forEach(gEvent => {
+                        // Skip if we just deleted this in our local session
+                        if (pendingDeletes.has(gEvent.id)) return;
 
-                        const start = gEvent.start?.dateTime || gEvent.start?.date;
-                        const end = gEvent.end?.dateTime || gEvent.end?.date;
+                        const existing = existingGoogleIdMap.get(gEvent.id);
+                        const mapped = mapGoogleToLocal(gEvent, existing?.id);
 
-                        if (!start || !end) return; // Skip malformed events
+                        if (existing) {
+                            // Only update if something changed
+                            const isDifferent =
+                                existing.title !== mapped.title ||
+                                existing.startDate !== mapped.startDate ||
+                                existing.endDate !== mapped.endDate ||
+                                existing.description !== mapped.description ||
+                                existing.location !== mapped.location ||
+                                existing.color !== mapped.color;
 
-                        const recurrence = parseRecurrence(gEvent.recurrence);
-
-                        const mappedEvent: CalendarEvent = {
-                            id: existingEvent ? existingEvent.id : uuid(),
-                            title: gEvent.summary || "(No Title)",
-                            description: gEvent.description,
-                            meetingLink: extractMeetingLink(gEvent),
-                            location: gEvent.location,
-                            startDate: start,
-                            endDate: end,
-                            color: googleColorIdToEventColor[String(gEvent.colorId)] ?? "blue",
-                            meta: { source: "system" },
-                            googleEventId: gEvent.id,
-                            organizer: mapPerson(gEvent.organizer),
-                            creator: mapPerson(gEvent.creator),
-                            attendees: mapAttendees(gEvent.attendees),
-                            recurrence,
-                        };
-
-                        // Check if we really need to update to avoid unnecessary re-renders
-                        if (existingEvent) {
-                            if (existingEvent.title === mappedEvent.title &&
-                                existingEvent.description === mappedEvent.description &&
-                                existingEvent.meetingLink === mappedEvent.meetingLink &&
-                                existingEvent.location === mappedEvent.location &&
-                                existingEvent.startDate === mappedEvent.startDate &&
-                                existingEvent.endDate === mappedEvent.endDate &&
-                                existingEvent.color === mappedEvent.color) {
-                                return;
-                            }
-                        }
-
-                        if (existingEvent) {
-                            const index = newEvents.findIndex(e => e.id === existingEvent.id);
-                            if (index !== -1) {
-                                newEvents[index] = mappedEvent;
+                            if (isDifferent) {
+                                resolvedEvents.push(mapped);
                                 hasChanges = true;
+                            } else {
+                                resolvedEvents.push(existing);
                             }
                         } else {
-                            newEvents.push(mappedEvent);
+                            // Truly new event from Google
+                            resolvedEvents.push(mapped);
                             hasChanges = true;
                         }
                     });
 
-                    return hasChanges ? newEvents : currentEvents;
+                    // 2. Process local events that aren't in the Google response
+                    currentEvents.forEach(localEvent => {
+                        if (!localEvent.googleEventId) {
+                            // Local-only/New event not yet synced to Google - KEEP
+                            resolvedEvents.push(localEvent);
+                        } else {
+                            // Event HAS a googleEventId but ISN'T in the Google response anymore
+                            if (!googleIdsInResponse.has(localEvent.googleEventId)) {
+                                // It was deleted in Google - REMOVE locally
+                                hasChanges = true;
+                                // We don't push it to resolvedEvents
+                            }
+                        }
+                    });
+
+                    // Cleanup pendingDeletes: if an ID is in pendingDeletes but NOT in the Google response, 
+                    // it means the deletion has been confirmed by Google.
+                    setPendingDeletes(prev => {
+                        const next = new Set(prev);
+                        let setChanged = false;
+                        prev.forEach(id => {
+                            if (!googleIdsInResponse.has(id)) {
+                                next.delete(id);
+                                setChanged = true;
+                            }
+                        });
+                        return setChanged ? next : prev;
+                    });
+
+                    return hasChanges ? resolvedEvents : currentEvents;
                 });
 
             } catch (err) {
@@ -296,154 +333,171 @@ export function GoogleCalendarSync() {
         return () => clearInterval(intervalId);
     }, [isAuthenticated, isLoading, setEvents]);
 
-    // Sync to Google (effect listener)
+    const handleEventCreated = async (action: CalendarAction) => {
+        const { event } = action.payload as any;
+
+        try {
+            const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            const resource: any = {
+                summary: event.title,
+                description: event.description,
+                start: { dateTime: event.startDate, timeZone },
+                end: { dateTime: event.endDate, timeZone },
+                colorId: eventColorToGoogleColorId[event.color],
+            };
+
+            if (event.location) {
+                resource.location = event.location;
+            }
+
+            if (event.attendees && event.attendees.length > 0) {
+                resource.attendees = event.attendees.map(attendee => ({
+                    email: attendee.email,
+                    displayName: attendee.name,
+                    responseStatus: attendee.responseStatus,
+                    optional: attendee.optional,
+                }));
+            }
+
+            if (event.meetingLinkRequested) {
+                resource.conferenceData = {
+                    createRequest: {
+                        requestId: uuid(),
+                        conferenceSolutionKey: { type: "hangoutsMeet" },
+                    },
+                };
+            }
+
+            // Add recurrence if present
+            if (event.recurrence) {
+                resource.recurrence = [toRRuleString(event.recurrence)];
+            }
+
+            const response = await withRetry(() => gapi.client.calendar.events.insert({
+                calendarId: 'primary',
+                resource,
+                conferenceDataVersion: event.meetingLinkRequested ? 1 : 0,
+            }));
+
+            setEvents(prev => prev.map(e =>
+                e.id === event.id ? {
+                    ...e,
+                    googleEventId: response.result.id,
+                    meta: { ...e.meta, source: "system" } as any,
+                    meetingLink: extractMeetingLink(response.result) ?? e.meetingLink,
+                    meetingLinkRequested: false,
+                    // Prefer the recurrence from Google's response, fall back to our local copy
+                    recurrence: parseRecurrence(response.result.recurrence) ?? e.recurrence,
+                } : e
+            ));
+            console.log("Successfully created Google event", response.result.id);
+        } catch (err) {
+            console.error("Error creating Google event", err);
+        }
+    };
+
+    const handleEventUpdated = async (action: CalendarAction) => {
+        const { after } = action.payload as any;
+        if (!after.googleEventId) return;
+
+        try {
+            const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            const resource: any = {
+                summary: after.title,
+                description: after.description,
+                start: { dateTime: after.startDate, timeZone },
+                end: { dateTime: after.endDate, timeZone },
+                colorId: eventColorToGoogleColorId[after.color],
+            };
+
+            if (after.meetingLink || after.location) {
+                resource.location = after.meetingLink ?? after.location;
+            }
+
+            if (after.attendees && after.attendees.length > 0) {
+                resource.attendees = after.attendees.map(attendee => ({
+                    email: attendee.email,
+                    displayName: attendee.name,
+                    responseStatus: attendee.responseStatus,
+                    optional: attendee.optional,
+                }));
+            }
+
+            // Add recurrence if present
+            if (after.recurrence) {
+                resource.recurrence = [toRRuleString(after.recurrence)];
+            } else {
+                // Remove recurrence if it was removed
+                resource.recurrence = [];
+            }
+
+            await withRetry(() => gapi.client.calendar.events.patch({
+                calendarId: 'primary',
+                eventId: after.googleEventId,
+                resource,
+            }));
+            console.log("Successfully updated Google event", after.googleEventId);
+        } catch (err) {
+            console.error("Error updating Google event", err);
+        }
+    };
+
+    const handleEventDeleted = async (action: CalendarAction) => {
+        const { event } = action.payload as any;
+        if (!event.googleEventId) return;
+
+        try {
+            await gapi.client.calendar.events.delete({
+                calendarId: 'primary',
+                eventId: event.googleEventId
+            });
+        } catch (err) {
+            console.error("Error deleting Google event", err);
+        }
+    };
+
+    // Sync to Google (queue processor)
     useEffect(() => {
-        if (!isAuthenticated || !latestAction || latestAction.source === 'system') return;
+        if (!isAuthenticated || actionQueue.length === 0) return;
 
-        const handleEventCreated = async (action: CalendarAction) => {
-            const { event } = action.payload as any;
+        const processQueue = async () => {
+            const action = actionQueue[0];
 
-            try {
-                const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-                const resource: any = {
-                    summary: event.title,
-                    description: event.description,
-                    start: { dateTime: event.startDate, timeZone },
-                    end: { dateTime: event.endDate, timeZone },
-                    colorId: eventColorToGoogleColorId[event.color],
-                };
-
-                if (event.location) {
-                    resource.location = event.location;
-                }
-
-                if (event.attendees && event.attendees.length > 0) {
-                    resource.attendees = event.attendees.map(attendee => ({
-                        email: attendee.email,
-                        displayName: attendee.name,
-                        responseStatus: attendee.responseStatus,
-                        optional: attendee.optional,
-                    }));
-                }
-
-                if (event.meetingLinkRequested) {
-                    resource.conferenceData = {
-                        createRequest: {
-                            requestId: uuid(),
-                            conferenceSolutionKey: { type: "hangoutsMeet" },
-                        },
-                    };
-                }
-
-                // Add recurrence if present
-                if (event.recurrence) {
-                    resource.recurrence = [toRRuleString(event.recurrence)];
-                }
-
-                const response = await withRetry(() => gapi.client.calendar.events.insert({
-                    calendarId: 'primary',
-                    resource,
-                    conferenceDataVersion: event.meetingLinkRequested ? 1 : 0,
-                }));
-
-                setEvents(prev => prev.map(e =>
-                    e.id === event.id ? {
-                        ...e,
-                        googleEventId: response.result.id,
-                        meta: { ...e.meta, source: "system" } as any,
-                        meetingLink: extractMeetingLink(response.result) ?? e.meetingLink,
-                        meetingLinkRequested: false,
-                        // Prefer the recurrence from Google's response, fall back to our local copy
-                        recurrence: parseRecurrence(response.result.recurrence) ?? e.recurrence,
-                    } : e
-                ));
-                console.log("Successfully created Google event", response.result.id);
-            } catch (err) {
-                console.error("Error creating Google event", err);
+            // Skip processing for actions already synced from system or otherwise ignored
+            if (action.source === 'system') {
+                setActionQueue(prev => prev.slice(1));
+                return;
             }
-        };
-
-        const handleEventUpdated = async (action: CalendarAction) => {
-            const { after } = action.payload as any;
-            if (!after.googleEventId) return;
 
             try {
-                const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-                const resource: any = {
-                    summary: after.title,
-                    description: after.description,
-                    start: { dateTime: after.startDate, timeZone },
-                    end: { dateTime: after.endDate, timeZone },
-                    colorId: eventColorToGoogleColorId[after.color],
-                };
-
-                if (after.meetingLink || after.location) {
-                    resource.location = after.meetingLink ?? after.location;
-                }
-
-                if (after.attendees && after.attendees.length > 0) {
-                    resource.attendees = after.attendees.map(attendee => ({
-                        email: attendee.email,
-                        displayName: attendee.name,
-                        responseStatus: attendee.responseStatus,
-                        optional: attendee.optional,
-                    }));
-                }
-
-                // Add recurrence if present
-                if (after.recurrence) {
-                    resource.recurrence = [toRRuleString(after.recurrence)];
-                } else {
-                    // Remove recurrence if it was removed
-                    resource.recurrence = [];
-                }
-
-                await withRetry(() => gapi.client.calendar.events.patch({
-                    calendarId: 'primary',
-                    eventId: after.googleEventId,
-                    resource,
-                }));
-                console.log("Successfully updated Google event", after.googleEventId);
-            } catch (err) {
-                console.error("Error updating Google event", err);
-            }
-        };
-
-        const handleEventDeleted = async (action: CalendarAction) => {
-            const { event } = action.payload as any;
-            if (!event.googleEventId) return;
-
-            try {
-                await gapi.client.calendar.events.delete({
-                    calendarId: 'primary',
-                    eventId: event.googleEventId
-                });
-            } catch (err) {
-                console.error("Error deleting Google event", err);
-            }
-        };
-
-        const syncToGoogle = async () => {
-            try {
-                switch (latestAction.type) {
+                switch (action.type) {
                     case 'ADD_EVENT':
-                        await handleEventCreated(latestAction);
+                        await handleEventCreated(action);
                         break;
                     case 'UPDATE_EVENT':
                     case 'MOVE_EVENT':
-                        await handleEventUpdated(latestAction);
+                        await handleEventUpdated(action);
                         break;
-                    case 'DELETE_EVENT':
-                        await handleEventDeleted(latestAction);
+                    case 'DELETE_EVENT': {
+                        const event = action.payload.event;
+                        if (event.googleEventId) {
+                            // Mark as pending delete to prevent sync re-adds
+                            setPendingDeletes(prev => new Set(prev).add(event.googleEventId!));
+                            await handleEventDeleted(action);
+                        }
                         break;
+                    }
                 }
             } catch (error) {
-                console.error('Error syncing to Google Calendar:', error);
+                console.error('Error syncing individual action to Google:', error);
+            } finally {
+                // Remove the action from the queue after processing (success or failure)
+                setActionQueue(prev => prev.slice(1));
             }
         };
 
-        syncToGoogle();
-    }, [isAuthenticated, latestAction, setEvents]);
+        processQueue();
+    }, [isAuthenticated, actionQueue, setActionQueue, setPendingDeletes]);
 
     return null; // Headless component
 }

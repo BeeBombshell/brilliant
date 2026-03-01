@@ -2,6 +2,9 @@ import { atom } from 'jotai';
 import { actionHistoryAtom, redoStackAtom } from './calendarAtoms';
 import type { CalendarAction } from '@/types/calendar';
 
+// Ensure timestamps are unique within a single execution batch.
+// This prevents consumers from accidentally grouping multiple actions together
+// due to identical timestamps (e.g. when batching tool-driven actions).
 function ensureUniqueActionTimestamps(actions: CalendarAction[]): CalendarAction[] {
   if (actions.length <= 1) return actions;
 
@@ -18,7 +21,7 @@ function ensureUniqueActionTimestamps(actions: CalendarAction[]): CalendarAction
     changed = true;
 
     const parsed = Date.parse(action.timestamp);
-    const baseMs = Number.isNaN(parsed) ? Date.now() : parsed;
+    const baseMs = Number.isNaN(parsed) ? 0 : parsed;
     let nextMs = nextMsByOriginalTimestamp.get(action.timestamp) ?? baseMs + 1;
 
     let candidate = new Date(nextMs).toISOString();

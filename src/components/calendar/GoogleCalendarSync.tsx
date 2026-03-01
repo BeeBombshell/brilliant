@@ -173,9 +173,15 @@ export function GoogleCalendarSync() {
     const [pendingDeletes, setPendingDeletes] = useAtom(pendingDeletesAtom);
 
     // Map a Google Event to our local CalendarEvent format
-    const mapGoogleToLocal = useCallback((gEvent: any, existingId?: string): CalendarEvent => {
+    const mapGoogleToLocal = useCallback((gEvent: any, existingId?: string): CalendarEvent | null => {
         const start = gEvent.start?.dateTime || gEvent.start?.date;
         const end = gEvent.end?.dateTime || gEvent.end?.date;
+
+        if (!start || !end) {
+            console.warn("Skipping Google Calendar event missing start/end", gEvent?.id);
+            return null;
+        }
+
         const recurrence = parseRecurrence(gEvent.recurrence);
 
         return {
@@ -264,6 +270,7 @@ export function GoogleCalendarSync() {
 
                         const existing = existingGoogleIdMap.get(gEvent.id);
                         const mapped = mapGoogleToLocal(gEvent, existing?.id);
+                        if (!mapped) return;
 
                         if (existing) {
                             // Only update if something changed
@@ -303,21 +310,21 @@ export function GoogleCalendarSync() {
                         }
                     });
 
-                    // Cleanup pendingDeletes: if an ID is in pendingDeletes but NOT in the Google response, 
-                    // it means the deletion has been confirmed by Google.
-                    setPendingDeletes(prev => {
-                        const next = new Set(prev);
-                        let setChanged = false;
-                        prev.forEach(id => {
-                            if (!googleIdsInResponse.has(id)) {
-                                next.delete(id);
-                                setChanged = true;
-                            }
-                        });
-                        return setChanged ? next : prev;
-                    });
-
                     return hasChanges ? resolvedEvents : currentEvents;
+                });
+
+                // Cleanup pendingDeletes: if an ID is in pendingDeletes but NOT in the Google response,
+                // it means the deletion has been confirmed by Google.
+                setPendingDeletes(prev => {
+                    const next = new Set(prev);
+                    let setChanged = false;
+                    prev.forEach(id => {
+                        if (!googleIdsInResponse.has(id)) {
+                            next.delete(id);
+                            setChanged = true;
+                        }
+                    });
+                    return setChanged ? next : prev;
                 });
 
             } catch (err) {
@@ -331,7 +338,7 @@ export function GoogleCalendarSync() {
         const intervalId = setInterval(fetchGoogleEvents, 60000);
 
         return () => clearInterval(intervalId);
-    }, [isAuthenticated, isLoading, setEvents]);
+    }, [isAuthenticated, isLoading, mapGoogleToLocal, pendingDeletes, setEvents, setPendingDeletes]);
 
     const handleEventCreated = async (action: CalendarAction) => {
         const { event } = action.payload as any;
@@ -410,8 +417,8 @@ export function GoogleCalendarSync() {
                 colorId: eventColorToGoogleColorId[after.color],
             };
 
-            if (after.meetingLink || after.location) {
-                resource.location = after.meetingLink ?? after.location;
+            if (after.location) {
+                resource.location = after.location;
             }
 
             if (after.attendees && after.attendees.length > 0) {

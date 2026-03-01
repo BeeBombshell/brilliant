@@ -57,7 +57,8 @@ export function CalendarMonthView() {
         <div className="grid grid-cols-7 divide-x border-b">
           {WEEK_DAYS.map(day => (
             <div key={day} className="flex items-center justify-center py-2">
-              <span className="text-xs font-medium text-muted-foreground">{day}</span>
+              <span className="text-xs font-medium text-muted-foreground hidden sm:inline">{day}</span>
+              <span className="text-xs font-medium text-muted-foreground sm:hidden">{day.charAt(0)}</span>
             </div>
           ))}
         </div>
@@ -78,7 +79,7 @@ export function CalendarMonthView() {
               <div
                 key={dayKey}
                 className={cn(
-                  "flex min-h-27.5 flex-col gap-1 border-b border-l py-1.5",
+                  "flex min-h-[80px] sm:min-h-27.5 flex-col gap-1 border-b border-l py-1 sm:py-1.5",
                   isSunday && "border-l-0",
                   !inMonth && "bg-muted/30"
                 )}
@@ -87,7 +88,7 @@ export function CalendarMonthView() {
                 <button
                   onClick={() => handleDayClick(day)}
                   className={cn(
-                    "flex size-6 translate-x-1 items-center justify-center rounded-full text-xs font-semibold hover:bg-accent",
+                    "flex size-5 sm:size-6 translate-x-1 items-center justify-center rounded-full text-[10px] sm:text-xs font-semibold hover:bg-accent",
                     "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
                     !inMonth && "opacity-40",
                     isToday(day) && "bg-primary font-bold text-primary-foreground hover:bg-primary"
@@ -97,24 +98,49 @@ export function CalendarMonthView() {
                 </button>
 
                 {/* Events */}
-                <div className={cn("flex flex-col gap-1", !inMonth && "opacity-50")}>
-                  {dayEvents.map(event => (
-                    <MultiDayEventBadge
-                      key={`${event.id}-${dayKey}`}
-                      event={event}
-                      position={event.position}
-                      onClick={() => setSelectedEventId(event.id)}
-                      className="text-[0.7rem]"
-                    />
-                  ))}
-                  {extraCount > 0 && (
-                    <button
-                      onClick={() => handleDayClick(day)}
-                      className="w-full rounded-md px-1 py-0.5 text-left text-[0.7rem] font-semibold text-primary transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    >
-                      +{extraCount} more
-                    </button>
-                  )}
+                <div className={cn("flex flex-1 flex-col gap-1 overflow-hidden", !inMonth && "opacity-50")}>
+                  {/* Desktop: Badges */}
+                  <div className="hidden sm:flex flex-col gap-1">
+                    {dayEvents.map(event => (
+                      <MultiDayEventBadge
+                        key={`${event.id}-${dayKey}`}
+                        event={event}
+                        position={event.position}
+                        onClick={() => setSelectedEventId(event.id)}
+                        className="text-[0.7rem]"
+                      />
+                    ))}
+                    {extraCount > 0 && (
+                      <button
+                        onClick={() => handleDayClick(day)}
+                        className="w-full rounded-md px-1 py-0.5 text-left text-[0.7rem] font-semibold text-primary transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      >
+                        +{extraCount} more
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Mobile: Dots */}
+                  <div className="flex sm:hidden flex-wrap gap-0.5 px-1 justify-center">
+                    {eventsForDay(day).slice(0, 4).map(event => (
+                      <div
+                        key={`${event.id}-dot-${dayKey}`}
+                        className={cn(
+                          "size-1 rounded-full",
+                          event.color === "blue" && "bg-sky-500",
+                          event.color === "green" && "bg-emerald-500",
+                          event.color === "red" && "bg-rose-500",
+                          event.color === "yellow" && "bg-amber-500",
+                          event.color === "purple" && "bg-violet-500",
+                          event.color === "orange" && "bg-orange-500",
+                          event.color === "gray" && "bg-slate-500"
+                        )}
+                      />
+                    ))}
+                    {eventsForDay(day).length > 4 && (
+                      <div className="size-1 rounded-full bg-muted-foreground" />
+                    )}
+                  </div>
                 </div>
               </div>
             );

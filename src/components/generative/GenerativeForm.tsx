@@ -1,8 +1,8 @@
 import { useState, useId, useCallback, useMemo } from "react";
 import { z } from "zod";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useTamboComponentState, useTamboThread } from "@tambo-ai/react";
-
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +21,32 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Field, FieldDescription, FieldError } from "@/components/ui/field";
 import { DateTimePicker } from "@/components/ui/datetime-picker";
+import { IconCheck, IconClipboard, IconSparkles } from "@tabler/icons-react";
+
+function safeMarkdownUrlTransform(url: string): string {
+    const trimmed = url.trim();
+    if (trimmed.length === 0) return "";
+    if (trimmed.startsWith("//")) return "";
+
+    try {
+        const parsed = new URL(trimmed, "https://example.com");
+        const protocol = parsed.protocol.toLowerCase();
+
+        if (
+            protocol === "http:" ||
+            protocol === "https:" ||
+            protocol === "mailto:" ||
+            protocol === "tel:"
+        ) {
+            return trimmed;
+        }
+
+        const isRelative = trimmed.startsWith("/") || trimmed.startsWith("#") || trimmed.startsWith(".");
+        return isRelative ? trimmed : "";
+    } catch {
+        return "";
+    }
+}
 
 // --- Field type definition ---
 // Each field the AI generates matches this shape.
@@ -92,6 +118,7 @@ function TextInputField({
             minLength={field.type === "text" ? (field.validation?.min ?? undefined) : undefined}
             maxLength={field.type === "text" ? (field.validation?.max ?? undefined) : undefined}
             pattern={field.validation?.pattern ?? undefined}
+            className="transition-all duration-200 focus:shadow-md"
         />
     );
 }
@@ -114,6 +141,7 @@ function TextareaField({
             rows={4}
             minLength={field.validation?.min ?? undefined}
             maxLength={field.validation?.max ?? undefined}
+            className="transition-all duration-200 focus:shadow-md"
         />
     );
 }
@@ -129,7 +157,7 @@ function SelectField({
 }) {
     return (
         <Select value={value || undefined} onValueChange={onChange}>
-            <SelectTrigger className="w-full">
+            <SelectTrigger className="w-full transition-all duration-200">
                 <SelectValue placeholder={field.placeholder ?? "Select an option…"} />
             </SelectTrigger>
             <SelectContent>
@@ -153,16 +181,35 @@ function RadioField({
     onChange: (v: string) => void;
 }) {
     return (
-        <RadioGroup value={value} onValueChange={onChange} className="gap-2.5">
+        <RadioGroup value={value} onValueChange={onChange} className="grid gap-3">
             {field.options?.filter(opt => opt.value && opt.label).map((opt) => {
                 const optId = `${field.id ?? 'field'}-${opt.value}`;
+                const isSelected = value === opt.value;
                 return (
-                    <div key={opt.value!} className="flex items-center gap-2">
-                        <RadioGroupItem value={opt.value!} id={optId} />
-                        <Label htmlFor={optId} className="font-normal cursor-pointer">
+                    <label
+                        key={opt.value!}
+                        htmlFor={optId}
+                        className={`
+                            group relative flex items-center gap-3 rounded-xl border px-4 py-3 cursor-pointer
+                            transition-all duration-300 ease-out
+                            ${isSelected
+                                ? 'border-primary/50 bg-primary/[0.03] shadow-[0_0_20px_rgba(var(--primary),0.05)] ring-1 ring-primary/20'
+                                : 'border-border/50 hover:border-primary/30 hover:bg-muted/30'
+                            }
+                        `}
+                    >
+                        <div className={`
+                            flex size-5 shrink-0 items-center justify-center rounded-full border
+                            transition-all duration-300
+                            ${isSelected ? 'border-primary bg-primary' : 'border-muted-foreground/30 group-hover:border-primary/50'}
+                        `}>
+                            <RadioGroupItem value={opt.value!} id={optId} className="sr-only" />
+                            {isSelected && <div className="size-1.5 rounded-full bg-primary-foreground" />}
+                        </div>
+                        <span className={`text-sm font-medium transition-colors ${isSelected ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground'}`}>
                             {opt.label}
-                        </Label>
-                    </div>
+                        </span>
+                    </label>
                 );
             })}
         </RadioGroup>
@@ -191,20 +238,40 @@ function CheckboxField({
         };
 
         return (
-            <div className="flex flex-col gap-2.5">
+            <div className="grid gap-3">
                 {field.options.filter(opt => opt.value && opt.label).map((opt) => {
                     const optId = `${field.id ?? 'field'}-${opt.value}`;
+                    const isSelected = selected.includes(opt.value!);
                     return (
-                        <div key={opt.value!} className="flex items-center gap-2">
-                            <Checkbox
-                                id={optId}
-                                checked={selected.includes(opt.value!)}
-                                onCheckedChange={() => toggle(opt.value!)}
-                            />
-                            <Label htmlFor={optId} className="font-normal cursor-pointer">
+                        <label
+                            key={opt.value!}
+                            htmlFor={optId}
+                            className={`
+                                group relative flex items-center gap-4 rounded-xl border px-4 py-3 cursor-pointer
+                                transition-all duration-300 ease-out
+                                ${isSelected
+                                    ? 'border-primary/50 bg-primary/[0.03] shadow-[0_0_20px_rgba(var(--primary),0.05)] ring-1 ring-primary/20'
+                                    : 'border-border/50 hover:border-primary/30 hover:bg-muted/30'
+                                }
+                            `}
+                        >
+                            <div className={`
+                                flex size-5 shrink-0 items-center justify-center rounded-lg border
+                                transition-all duration-300
+                                ${isSelected ? 'border-primary bg-primary' : 'border-muted-foreground/30 group-hover:border-primary/50'}
+                            `}>
+                                <Checkbox
+                                    id={optId}
+                                    checked={isSelected}
+                                    onCheckedChange={() => toggle(opt.value!)}
+                                    className="sr-only"
+                                />
+                                {isSelected && <IconCheck size={14} className="text-primary-foreground" />}
+                            </div>
+                            <span className={`text-sm font-medium transition-colors ${isSelected ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground'}`}>
                                 {opt.label}
-                            </Label>
-                        </div>
+                            </span>
+                        </label>
                     );
                 })}
             </div>
@@ -213,17 +280,36 @@ function CheckboxField({
 
     // Single boolean checkbox
     const cbId = field.id ?? 'checkbox';
+    const isChecked = value === "true";
     return (
-        <div className="flex items-center gap-2">
-            <Checkbox
-                id={cbId}
-                checked={value === "true"}
-                onCheckedChange={(checked) => onChange(String(!!checked))}
-            />
-            <Label htmlFor={cbId} className="font-normal cursor-pointer">
+        <label
+            htmlFor={cbId}
+            className={`
+                group relative flex items-center gap-4 rounded-xl border px-4 py-3 cursor-pointer
+                transition-all duration-300 ease-out
+                ${isChecked
+                    ? 'border-primary/50 bg-primary/[0.03] shadow-[0_0_20px_rgba(var(--primary),0.05)] ring-1 ring-primary/20'
+                    : 'border-border/50 hover:border-primary/30 hover:bg-muted/30'
+                }
+            `}
+        >
+            <div className={`
+                flex size-5 shrink-0 items-center justify-center rounded-lg border
+                transition-all duration-300
+                ${isChecked ? 'border-primary bg-primary' : 'border-muted-foreground/30 group-hover:border-primary/50'}
+            `}>
+                <Checkbox
+                    id={cbId}
+                    checked={isChecked}
+                    onCheckedChange={(checked) => onChange(String(!!checked))}
+                    className="sr-only"
+                />
+                {isChecked && <IconCheck size={14} className="text-primary-foreground" />}
+            </div>
+            <span className={`text-sm font-medium transition-colors ${isChecked ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground'}`}>
                 {field.label ?? 'Option'}
-            </Label>
-        </div>
+            </span>
+        </label>
     );
 }
 
@@ -238,15 +324,22 @@ function SwitchField({
 }) {
     const swId = field.id ?? 'switch';
     return (
-        <div className="flex items-center gap-3">
+        <div className={`
+            flex items-center justify-between rounded-xl border px-4 py-3
+            transition-all duration-200
+            ${value === "true"
+                ? 'border-primary/40 bg-primary/5'
+                : 'border-border hover:border-primary/20'
+            }
+        `}>
+            <Label htmlFor={swId} className="font-normal cursor-pointer text-sm">
+                {field.label ?? 'Toggle'}
+            </Label>
             <Switch
                 id={swId}
                 checked={value === "true"}
                 onCheckedChange={(checked) => onChange(String(!!checked))}
             />
-            <Label htmlFor={swId} className="font-normal cursor-pointer">
-                {field.label ?? 'Toggle'}
-            </Label>
         </div>
     );
 }
@@ -264,10 +357,10 @@ function RangeField({
     const max = field.validation?.max ?? 100;
 
     return (
-        <div className="space-y-2">
+        <div className="space-y-3">
             <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>{min}</span>
-                <Badge variant="secondary">{value || min}</Badge>
+                <Badge variant="secondary" className="text-xs tabular-nums font-semibold">{value || min}</Badge>
                 <span>{max}</span>
             </div>
             <input
@@ -276,7 +369,7 @@ function RangeField({
                 max={max}
                 value={value || String(min)}
                 onChange={(e) => onChange(e.target.value)}
-                className="w-full accent-primary cursor-pointer"
+                className="w-full accent-primary cursor-pointer h-2 rounded-full"
             />
         </div>
     );
@@ -301,13 +394,13 @@ function FormFieldRenderer({
     return (
         <Field data-invalid={!!error || undefined}>
             {!hasInlineLabel && (
-                <Label htmlFor={field.id ?? undefined} className="flex items-center gap-1">
+                <Label htmlFor={field.id ?? undefined} className="flex items-center gap-1.5 text-sm font-medium">
                     {field.label ?? 'Field'}
-                    {field.required && <span className="text-destructive">*</span>}
+                    {field.required && <span className="text-destructive text-xs">*</span>}
                 </Label>
             )}
             {field.description && (
-                <FieldDescription>{field.description}</FieldDescription>
+                <FieldDescription className="text-xs text-muted-foreground mt-0.5 mb-1.5">{field.description}</FieldDescription>
             )}
 
             {/* Render the appropriate input */}
@@ -338,8 +431,28 @@ function FormFieldRenderer({
                 <RangeField field={field} value={value} onChange={onChange} />
             )}
 
-            {error && <FieldError>{error}</FieldError>}
+            {error && <FieldError className="text-xs mt-1">{error}</FieldError>}
         </Field>
+    );
+}
+
+// --- Animated step progress for multi-section forms ---
+function FormProgress({ current, total }: { current: number; total: number }) {
+    if (total <= 1) return null;
+    return (
+        <div className="flex items-center gap-1.5 mb-1">
+            {Array.from({ length: total }, (_, i) => (
+                <div
+                    key={i}
+                    className={`h-1 flex-1 rounded-full transition-all duration-500 ${i < current
+                        ? 'bg-primary'
+                        : i === current
+                            ? 'bg-primary/50'
+                            : 'bg-muted'
+                        }`}
+                />
+            ))}
+        </div>
     );
 }
 
@@ -362,7 +475,6 @@ export function GenerativeForm({
     }, [fields]);
 
     // Use plain useState for values — useTamboComponentState doesn't support functional updaters
-    // which handleChange needs: setValues(prev => ({ ...prev, [id]: val }))
     const [values, setValues] = useState<Record<string, string>>(initialValues);
     const [submitted, setSubmitted] = useTamboComponentState<boolean>("submitted", false);
     const [errors, setErrors] = useState<Record<string, string>>({});
@@ -440,19 +552,19 @@ export function GenerativeForm({
     }, [fields]);
 
     // Build the field rendering function with optional width support
-    const renderField = (field: FormFieldDef) => {
+    const renderField = (field: FormFieldDef, index: number) => {
         // Skip fields still streaming without an id or type
-        const fieldId = field.id ?? `_streaming_${Math.random()}`;
+        const fieldId = field.id ?? `_streaming_${index}`;
         if (!field.type || !field.label) {
             return (
                 <div key={fieldId} className="col-span-full">
-                    <div className="h-10 rounded-lg bg-muted animate-pulse" />
+                    <div className="h-12 rounded-xl bg-muted/50 animate-pulse" />
                 </div>
             );
         }
 
         return (
-            <div key={fieldId} className="w-full">
+            <div key={fieldId} className="w-full animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
                 <FormFieldRenderer
                     field={field}
                     value={values[fieldId] ?? ""}
@@ -466,63 +578,133 @@ export function GenerativeForm({
     // Guard against streaming — fields may be undefined initially
     if (!fields || fields.length === 0) {
         return (
-            <Card className="w-full max-w-full animate-pulse bg-transparent ring-0 shadow-none rounded-none overflow-visible">
-                <CardHeader className="px-0 pt-0">
-                    <CardTitle>{title ?? "Loading form…"}</CardTitle>
-                </CardHeader>
-                <CardContent className="px-0">
-                    <div className="space-y-4">
-                        {[1, 2, 3].map((i) => (
-                            <div key={i} className="h-10 rounded-lg bg-muted" />
-                        ))}
+            <div className="w-full rounded-2xl border border-border/50 bg-card/50 backdrop-blur-sm overflow-hidden">
+                <div className="p-5 border-b border-border/30">
+                    <div className="flex items-center gap-2.5">
+                        <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                            <IconSparkles size={16} className="text-primary animate-pulse" />
+                        </div>
+                        <div>
+                            <div className="font-semibold text-sm">{title ?? "Generating form…"}</div>
+                            <div className="text-xs text-muted-foreground mt-0.5">Please wait while the form is being created</div>
+                        </div>
                     </div>
-                </CardContent>
-            </Card>
+                </div>
+                <div className="p-5 space-y-4">
+                    {[1, 2, 3].map((i) => (
+                        <div key={i} className="space-y-2">
+                            <div className="h-3 w-24 rounded-md bg-muted/70 animate-pulse" />
+                            <div className="h-10 rounded-xl bg-muted/50 animate-pulse" style={{ animationDelay: `${i * 150}ms` }} />
+                        </div>
+                    ))}
+                </div>
+            </div>
         );
     }
 
     if (submitted) {
         return (
-            <Card className="w-full max-w-full bg-transparent ring-0 shadow-none rounded-none overflow-visible">
-                <CardHeader className="px-0 pt-0">
-                    <CardTitle className="text-green-600">✓ Submitted Successfully</CardTitle>
-                    <CardDescription>
-                        Your responses for "{title}" have been recorded.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="px-0">
-                    <div className="space-y-2">
+            <div className="w-full rounded-2xl border border-border/50 bg-card/50 backdrop-blur-sm overflow-hidden">
+                {/* Success header */}
+                <div className="p-5 border-b border-border/30 bg-emerald-500/5">
+                    <div className="flex items-center gap-2.5">
+                        <div className="size-8 rounded-lg bg-emerald-500/15 flex items-center justify-center">
+                            <IconCheck size={16} className="text-emerald-600 dark:text-emerald-400" />
+                        </div>
+                        <div>
+                            <div className="font-semibold text-sm text-emerald-700 dark:text-emerald-300">
+                                Submitted Successfully
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-0.5">
+                                Your responses for "{title}" have been recorded
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {/* Response summary */}
+                <div className="p-5">
+                    <div className="space-y-3">
                         {fields.map((f) => {
                             if (!f.id) return null;
                             const val = values[f.id];
                             if (!val) return null;
                             return (
-                                <div key={f.id} className="flex flex-col gap-0.5">
-                                    <span className="text-xs font-medium text-muted-foreground">{f.label ?? 'Field'}</span>
-                                    <span className="text-sm">{val}</span>
+                                <div key={f.id} className="flex flex-col gap-1 rounded-xl bg-muted/30 px-4 py-3">
+                                    <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                                        {f.label ?? 'Field'}
+                                    </span>
+                                    <span className="text-sm font-medium">{val}</span>
                                 </div>
                             );
                         })}
                     </div>
-                </CardContent>
-            </Card>
+                </div>
+            </div>
         );
     }
 
-    // Always use single-column layout — one field per row
+    // Single-column layout
     const gridClass = "flex flex-col gap-5";
-
-    // Section-based layout
     const hasSections = sections && sections.length > 0;
+    const totalSections = hasSections ? sections.length : 1;
 
     return (
-        <Card className="w-full max-w-full bg-transparent ring-0 shadow-none rounded-none overflow-visible">
-            <CardHeader className="px-0 pt-0">
-                <CardTitle>{title}</CardTitle>
-                {description && <CardDescription>{description}</CardDescription>}
-            </CardHeader>
+        <div className="w-full rounded-[24px] border border-white/[0.08] bg-white/[0.03] backdrop-blur-md overflow-hidden shadow-2xl transition-all duration-500 hover:border-white/[0.12]">
+            {/* Form header */}
+            <div className="p-4 border-b border-white/[0.05] bg-white/[0.01]">
+                <div className="flex flex-col items-start gap-3">
+                    <div className="flex items-center gap-3">
+                        <div className="size-9 rounded-lg bg-primary/20 flex items-center justify-center shrink-0 mt-0.5 border border-primary/20 shadow-[0_0_15px_rgba(var(--primary),0.15)]">
+                            <IconClipboard size={18} className="text-primary" />
+                        </div>
+                        <h3 className="font-bold text-base leading-tight tracking-tight text-white/90">{title}</h3>
+                        {fields && (
+                            <Badge variant="secondary" className="bg-white/5 border-white/10 text-[10px] shrink-0 tabular-nums px-2 py-0.5 text-white/50">
+                                {fields.length} {fields.length === 1 ? 'field' : 'fields'}
+                            </Badge>
+                        )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        {description && (
+                            <div className="mt-3 rounded-xl bg-white/[0.03] p-3.5 border border-white/[0.05] ring-1 ring-white/[0.05] shadow-inner">
+                                <div className="prose prose-sm prose-invert max-w-none text-white/60 leading-relaxed text-[13px]">
+                                    <ReactMarkdown
+                                        remarkPlugins={[remarkGfm]}
+                                        allowedElements={["p", "strong", "em", "ul", "ol", "li", "code", "pre", "a", "br"]}
+                                        unwrapDisallowed
+                                        urlTransform={safeMarkdownUrlTransform}
+                                        components={{
+                                            a: ({ node, href, ...props }) => {
+                                                void node;
+
+                                                if (!href) {
+                                                    return <span>{props.children}</span>;
+                                                }
+
+                                                return (
+                                                    <a
+                                                        {...props}
+                                                        href={href}
+                                                        target="_blank"
+                                                        rel="noreferrer noopener"
+                                                    />
+                                                );
+                                            },
+                                        }}
+                                    >
+                                        {description}
+                                    </ReactMarkdown>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+                {hasSections && <div className="mt-4"><FormProgress current={0} total={totalSections} /></div>}
+            </div>
+
+            {/* Form body */}
             <form onSubmit={handleSubmit}>
-                <CardContent className="px-0 pt-4">
+                <div className="p-4">
                     {hasSections ? (
                         <div className="space-y-8">
                             {sections.map((section, idx) => {
@@ -532,17 +714,27 @@ export function GenerativeForm({
                                 if (sectionFields.length === 0) return null;
                                 return (
                                     <div key={idx} className="space-y-4">
-                                        <div>
-                                            <h3 className="text-sm font-semibold">{section.title ?? 'Section'}</h3>
-                                            {section.description && (
-                                                <p className="text-xs text-muted-foreground mt-0.5">
-                                                    {section.description}
-                                                </p>
-                                            )}
+                                        <div className="flex items-center gap-2">
+                                            <div className="size-5 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+                                                <span className="text-[10px] font-bold text-primary">{idx + 1}</span>
+                                            </div>
+                                            <div>
+                                                <h4 className="text-sm font-semibold leading-tight">
+                                                    {section.title ?? 'Section'}
+                                                </h4>
+                                                {section.description && (
+                                                    <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">
+                                                        {section.description}
+                                                    </p>
+                                                )}
+                                            </div>
                                         </div>
                                         <div className={gridClass}>
-                                            {sectionFields.map(renderField)}
+                                            {sectionFields.map((f, index) => renderField(f, index))}
                                         </div>
+                                        {idx < sections.length - 1 && (
+                                            <div className="border-b border-border/30" />
+                                        )}
                                     </div>
                                 );
                             })}
@@ -557,23 +749,32 @@ export function GenerativeForm({
                                 if (unsectioned.length === 0) return null;
                                 return (
                                     <div className={gridClass}>
-                                        {unsectioned.map(renderField)}
+                                        {unsectioned.map((f, index) => renderField(f, index))}
                                     </div>
                                 );
                             })()}
                         </div>
                     ) : (
-                        <div className={gridClass}>{fields.map(renderField)}</div>
+                        <div className={gridClass}>{fields.map((f, index) => renderField(f, index))}</div>
                     )}
-                </CardContent>
+                </div>
+
+                {/* Form footer */}
                 {isFormReady && !submitted && (
-                    <CardFooter className="px-0 bg-transparent border-0">
-                        <Button type="submit" className="w-full sm:w-auto">
-                            {submitLabel ?? "Submit"}
+                    <div className="px-4 pb-4 pt-1">
+                        <Button
+                            type="submit"
+                            className="group relative w-full sm:w-auto overflow-hidden rounded-xl px-6 h-10 font-bold text-sm transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-primary/20"
+                        >
+                            <span className="relative z-10 flex items-center gap-2">
+                                {submitLabel ?? "Submit"}
+                                <IconSparkles size={14} className="opacity-0 group-hover:opacity-100 transition-opacity animate-pulse" />
+                            </span>
+                            <div className="absolute inset-0 bg-gradient-to-r from-primary to-primary/80 transition-opacity group-hover:opacity-90" />
                         </Button>
-                    </CardFooter>
+                    </div>
                 )}
             </form>
-        </Card>
+        </div>
     );
 }

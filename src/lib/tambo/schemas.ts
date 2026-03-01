@@ -61,8 +61,8 @@ export const CreateEventSchema = z.object({
 });
 
 export const GetEventsSchema = z.object({
-    startDate: z.string().describe('Start date in ISO format'),
-    endDate: z.string().describe('End date in ISO format'),
+    startDate: z.string().describe('Start date/time in full ISO 8601 format with time and timezone, e.g. "2026-02-28T00:00:00+05:30". Always include the time portion — never pass a date-only string like "2026-02-28".'),
+    endDate: z.string().describe('End date/time in full ISO 8601 format with time and timezone, e.g. "2026-02-28T23:59:59+05:30". Always include the time portion — never pass a date-only string like "2026-02-28".'),
 });
 
 export const UpdateEventSchema = z.object({

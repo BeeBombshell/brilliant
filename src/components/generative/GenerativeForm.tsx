@@ -674,11 +674,17 @@ export function GenerativeForm({
                                         unwrapDisallowed
                                         urlTransform={safeMarkdownUrlTransform}
                                         components={{
-                                            a: ({ node, ...props }) => {
+                                            a: ({ node, href, ...props }) => {
                                                 void node;
+
+                                                if (!href) {
+                                                    return <span>{props.children}</span>;
+                                                }
+
                                                 return (
                                                     <a
                                                         {...props}
+                                                        href={href}
                                                         target="_blank"
                                                         rel="noreferrer noopener"
                                                     />

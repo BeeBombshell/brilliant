@@ -63,15 +63,24 @@ function AppWithTambo() {
           timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         }),
         calendarViewContext: () => {
-          let rangeDescription = "";
-          if (view === "day") {
-            rangeDescription = `looking at ${format(selectedDate, "PPPP")}`;
-          } else if (view === "week") {
-            const start = startOfWeek(selectedDate);
-            const end = endOfWeek(selectedDate);
-            rangeDescription = `looking at the week of ${format(start, "MMM d")} - ${format(end, "MMM d, yyyy")}`;
-          } else if (view === "month") {
-            rangeDescription = `looking at ${format(selectedDate, "MMMM yyyy")}`;
+          const weekOpts = { weekStartsOn: 0 as const };
+
+          let rangeDescription: string;
+          switch (view) {
+            case "day":
+              rangeDescription = `looking at ${format(selectedDate, "PPPP")}`;
+              break;
+            case "week": {
+              const start = startOfWeek(selectedDate, weekOpts);
+              const end = endOfWeek(selectedDate, weekOpts);
+              rangeDescription = `looking at the week of ${format(start, "MMM d")} - ${format(end, "MMM d, yyyy")}`;
+              break;
+            }
+            case "month":
+              rangeDescription = `looking at ${format(selectedDate, "MMMM yyyy")}`;
+              break;
+            default:
+              rangeDescription = `looking at ${format(selectedDate, "PPPP")}`;
           }
 
           return {

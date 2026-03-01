@@ -116,5 +116,5 @@ export interface ThreadHistoryEntry {
 }
 
 export const threadsHistoryAtom = atom<ThreadHistoryEntry[]>([]);
-export const pendingDeletesAtom = atom<Set<string>>(new Set<string>());
+export const pendingDeletesAtom = atom<string[]>([]);
 

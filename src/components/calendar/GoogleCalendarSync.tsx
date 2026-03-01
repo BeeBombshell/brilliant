@@ -266,7 +266,7 @@ export function GoogleCalendarSync() {
                     // 1. Process events coming from Google
                     googleEvents.forEach(gEvent => {
                         // Skip if we just deleted this in our local session
-                        if (pendingDeletes.has(gEvent.id)) return;
+                        if (pendingDeletes.includes(gEvent.id)) return;
 
                         const existing = existingGoogleIdMap.get(gEvent.id);
                         const mapped = mapGoogleToLocal(gEvent, existing?.id);
@@ -316,15 +316,8 @@ export function GoogleCalendarSync() {
                 // Cleanup pendingDeletes: if an ID is in pendingDeletes but NOT in the Google response,
                 // it means the deletion has been confirmed by Google.
                 setPendingDeletes(prev => {
-                    const next = new Set(prev);
-                    let setChanged = false;
-                    prev.forEach(id => {
-                        if (!googleIdsInResponse.has(id)) {
-                            next.delete(id);
-                            setChanged = true;
-                        }
-                    });
-                    return setChanged ? next : prev;
+                    const next = prev.filter(id => googleIdsInResponse.has(id));
+                    return next.length === prev.length ? prev : next;
                 });
 
             } catch (err) {
@@ -489,7 +482,11 @@ export function GoogleCalendarSync() {
                         const event = action.payload.event;
                         if (event.googleEventId) {
                             // Mark as pending delete to prevent sync re-adds
-                            setPendingDeletes(prev => new Set(prev).add(event.googleEventId!));
+                            setPendingDeletes(prev =>
+                                prev.includes(event.googleEventId!)
+                                    ? prev
+                                    : [...prev, event.googleEventId!]
+                            );
                             await handleEventDeleted(action);
                         }
                         break;

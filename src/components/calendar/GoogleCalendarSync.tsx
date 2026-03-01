@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useRef } from "react";
 import { useAtom } from "jotai";
 import { v4 as uuid } from "uuid";
 import { useGoogleAuth } from "@/contexts/GoogleAuthContext";
@@ -171,6 +171,7 @@ export function GoogleCalendarSync() {
     const [, setEvents] = useAtom(eventsAtom);
     const [actionQueue, setActionQueue] = useAtom(calendarActionQueueAtom);
     const [pendingDeletes, setPendingDeletes] = useAtom(pendingDeletesAtom);
+    const queueRetryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Map a Google Event to our local CalendarEvent format
     const mapGoogleToLocal = useCallback((gEvent: any, existingId?: string): CalendarEvent | null => {
@@ -181,7 +182,6 @@ export function GoogleCalendarSync() {
             console.warn("Skipping Google Calendar event missing start/end", gEvent?.id);
             return null;
         }
-
         const recurrence = parseRecurrence(gEvent.recurrence);
 
         return {
@@ -270,7 +270,11 @@ export function GoogleCalendarSync() {
 
                         const existing = existingGoogleIdMap.get(gEvent.id);
                         const mapped = mapGoogleToLocal(gEvent, existing?.id);
-                        if (!mapped) return;
+
+                        if (!mapped) {
+                            if (existing) resolvedEvents.push(existing);
+                            return;
+                        }
 
                         if (existing) {
                             // Only update if something changed
@@ -469,14 +473,22 @@ export function GoogleCalendarSync() {
                 return;
             }
 
+            if (queueRetryTimeoutRef.current) {
+                clearTimeout(queueRetryTimeoutRef.current);
+                queueRetryTimeoutRef.current = null;
+            }
+
+            let ok = false;
             try {
                 switch (action.type) {
                     case 'ADD_EVENT':
                         await handleEventCreated(action);
+                        ok = true;
                         break;
                     case 'UPDATE_EVENT':
                     case 'MOVE_EVENT':
                         await handleEventUpdated(action);
+                        ok = true;
                         break;
                     case 'DELETE_EVENT': {
                         const event = action.payload.event;
@@ -489,18 +501,31 @@ export function GoogleCalendarSync() {
                             );
                             await handleEventDeleted(action);
                         }
+                        ok = true;
                         break;
                     }
                 }
             } catch (error) {
                 console.error('Error syncing individual action to Google:', error);
             } finally {
-                // Remove the action from the queue after processing (success or failure)
-                setActionQueue(prev => prev.slice(1));
+                if (ok) {
+                    setActionQueue(prev => prev.slice(1));
+                } else if (!queueRetryTimeoutRef.current) {
+                    queueRetryTimeoutRef.current = setTimeout(() => {
+                        queueRetryTimeoutRef.current = null;
+                        setActionQueue(prev => [...prev]);
+                    }, 2000);
+                }
             }
         };
 
         processQueue();
+        return () => {
+            if (queueRetryTimeoutRef.current) {
+                clearTimeout(queueRetryTimeoutRef.current);
+                queueRetryTimeoutRef.current = null;
+            }
+        };
     }, [actionQueue, handleEventCreated, handleEventDeleted, handleEventUpdated, isAuthenticated, setActionQueue, setPendingDeletes]);
 
     return null; // Headless component

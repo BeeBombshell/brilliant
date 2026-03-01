@@ -5,23 +5,32 @@ import type { CalendarAction } from '@/types/calendar';
 function ensureUniqueActionTimestamps(actions: CalendarAction[]): CalendarAction[] {
   if (actions.length <= 1) return actions;
 
-  const seen = new Set<string>();
-  const hasDuplicate = actions.some((a) => {
-    if (seen.has(a.timestamp)) return true;
-    seen.add(a.timestamp);
-    return false;
+  const used = new Set<string>();
+  let changed = false;
+
+  const next = actions.map((action) => {
+    if (!used.has(action.timestamp)) {
+      used.add(action.timestamp);
+      return action;
+    }
+
+    changed = true;
+
+    const parsed = Date.parse(action.timestamp);
+    const baseMs = Number.isNaN(parsed) ? Date.now() : parsed;
+
+    let offset = 1;
+    let candidate = new Date(baseMs + offset).toISOString();
+    while (used.has(candidate)) {
+      offset += 1;
+      candidate = new Date(baseMs + offset).toISOString();
+    }
+
+    used.add(candidate);
+    return { ...action, timestamp: candidate };
   });
 
-  if (!hasDuplicate) return actions;
-
-  const baseMs = Number.isNaN(Date.parse(actions[0].timestamp))
-    ? Date.now()
-    : Date.parse(actions[0].timestamp);
-
-  return actions.map((a, idx) => ({
-    ...a,
-    timestamp: new Date(baseMs + idx).toISOString(),
-  }));
+  return changed ? next : actions;
 }
 
 // Queue atom that components can subscribe to for side effects

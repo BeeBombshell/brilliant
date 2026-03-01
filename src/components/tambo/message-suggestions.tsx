@@ -356,7 +356,7 @@ const MessageSuggestionsList = React.forwardRef<
   HTMLDivElement,
   MessageSuggestionsListProps
 >(({ className, ...props }, ref) => {
-  const { suggestions, selectedSuggestionId, accept, submit, isGenerating, isMac, isStreaming, setValue } =
+  const { suggestions, selectedSuggestionId, submit, isGenerating, isMac, isStreaming, setValue } =
     useMessageSuggestionsContext();
 
   const modKey = isMac ? "⌘" : "Ctrl";

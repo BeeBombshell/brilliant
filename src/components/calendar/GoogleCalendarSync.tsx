@@ -3,7 +3,7 @@ import { useAtom } from "jotai";
 import { v4 as uuid } from "uuid";
 import { useGoogleAuth } from "@/contexts/GoogleAuthContext";
 import { calendarActionQueueAtom } from "@/state/calendarEffects";
-import { eventsAtom, pendingDeletesAtom } from "@/state/calendarAtoms";
+import { eventsAtom, pendingDeletesAtom, actionHistoryAtom, redoStackAtom } from "@/state/calendarAtoms";
 import type { CalendarEvent, CalendarAction, RecurrenceRule, EventAttendee, EventPerson, EventColor } from "@/types/calendar";
 
 const googleColorIdToEventColor: Record<string, EventColor> = {
@@ -171,6 +171,8 @@ export function GoogleCalendarSync() {
     const [, setEvents] = useAtom(eventsAtom);
     const [actionQueue, setActionQueue] = useAtom(calendarActionQueueAtom);
     const [pendingDeletes, setPendingDeletes] = useAtom(pendingDeletesAtom);
+    const [, setActionHistory] = useAtom(actionHistoryAtom);
+    const [, setRedoStack] = useAtom(redoStackAtom);
     const queueRetryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Map a Google Event to our local CalendarEvent format
@@ -394,6 +396,71 @@ export function GoogleCalendarSync() {
                     recurrence: parseRecurrence(response.result.recurrence) ?? e.recurrence,
                 } : e
             ));
+
+            const googleEventId = response.result.id;
+
+            // Update action history so undo/redo work correctly with Google Calendar
+            setActionHistory(prev => prev.map(a => {
+                if (a.type === 'ADD_EVENT' && a.payload.event.id === event.id) {
+                    return {
+                        ...a,
+                        payload: {
+                            ...a.payload,
+                            event: { ...a.payload.event, googleEventId }
+                        }
+                    };
+                }
+                return a;
+            }));
+
+            // Also update redo stack in case the user undid this while it was still syncing
+            setRedoStack(prev => prev.map(a => {
+                if (a.type === 'ADD_EVENT' && a.payload.event.id === event.id) {
+                    return {
+                        ...a,
+                        payload: {
+                            ...a.payload,
+                            event: { ...a.payload.event, googleEventId }
+                        }
+                    };
+                }
+                return a;
+            }));
+
+            // CRITICAL: Also update any pending actions in the queue that might be waiting for this ID
+            // And mark as pending delete if there's a DELETE_EVENT in the queue
+            setActionQueue(prev => {
+                const hasPendingDelete = prev.some(a => a.type === 'DELETE_EVENT' && (a.payload as any).event.id === event.id);
+                if (hasPendingDelete) {
+                    setPendingDeletes(pd => pd.includes(googleEventId) ? pd : [...pd, googleEventId]);
+                }
+
+                return prev.map(a => {
+                    // If it's a delete for this event
+                    if (a.type === 'DELETE_EVENT' && (a.payload as any).event.id === event.id) {
+                        return {
+                            ...a,
+                            payload: {
+                                ...a.payload,
+                                event: { ...(a.payload as any).event, googleEventId }
+                            }
+                        };
+                    }
+                    // If it's an update for this event
+                    if ((a.type === 'UPDATE_EVENT' || a.type === 'MOVE_EVENT') && (a.payload as any).before.id === event.id) {
+                        return {
+                            ...a,
+                            payload: {
+                                ...a.payload,
+                                before: { ...(a.payload as any).before, googleEventId },
+                                after: { ...(a.payload as any).after, googleEventId }
+                            }
+                        };
+                    }
+                    return a;
+                });
+            });
+
             console.log("Successfully created Google event", response.result.id);
         } catch (err) {
             console.error("Error creating Google event", err);

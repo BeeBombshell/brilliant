@@ -6,6 +6,7 @@ function ensureUniqueActionTimestamps(actions: CalendarAction[]): CalendarAction
   if (actions.length <= 1) return actions;
 
   const used = new Set<string>();
+  const nextMsByOriginalTimestamp = new Map<string, number>();
   let changed = false;
 
   const next = actions.map((action) => {
@@ -18,13 +19,15 @@ function ensureUniqueActionTimestamps(actions: CalendarAction[]): CalendarAction
 
     const parsed = Date.parse(action.timestamp);
     const baseMs = Number.isNaN(parsed) ? Date.now() : parsed;
+    let nextMs = nextMsByOriginalTimestamp.get(action.timestamp) ?? baseMs + 1;
 
-    let offset = 1;
-    let candidate = new Date(baseMs + offset).toISOString();
+    let candidate = new Date(nextMs).toISOString();
     while (used.has(candidate)) {
-      offset += 1;
-      candidate = new Date(baseMs + offset).toISOString();
+      nextMs += 1;
+      candidate = new Date(nextMs).toISOString();
     }
+
+    nextMsByOriginalTimestamp.set(action.timestamp, nextMs + 1);
 
     used.add(candidate);
     return { ...action, timestamp: candidate };
@@ -57,9 +60,7 @@ export const executeCalendarActionAtom = atom(
 export const emitCalendarActionEffectAtom = atom(
   null,
   (_get, set, actionOrActions: CalendarAction | CalendarAction[]) => {
-    const actions = ensureUniqueActionTimestamps(
-      Array.isArray(actionOrActions) ? actionOrActions : [actionOrActions]
-    );
+    const actions = Array.isArray(actionOrActions) ? actionOrActions : [actionOrActions];
     set(calendarActionQueueAtom, (prev) => [...prev, ...actions]);
   }
 );

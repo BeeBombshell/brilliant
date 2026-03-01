@@ -38,7 +38,7 @@ import {
   MessageInput as MessageInputBase,
   type PromptProvider,
   type ResourceProvider,
-  type StagedImageRenderProps,
+  type StagedImageState,
 } from "@tambo-ai/react-ui-base/message-input";
 
 // Lazy load DictationButton for code splitting (framework-agnostic alternative to next/dynamic)
@@ -68,7 +68,7 @@ const DictationButton = () => {
   );
 };
 
-const noop = () => {};
+const noop = () => { };
 
 // Re-export provider interfaces from base
 export type { PromptProvider, ResourceProvider };
@@ -351,9 +351,9 @@ MessageInputTextarea.displayName = "MessageInput.Textarea";
 interface McpPromptEffectProps {
   selectedMcpPromptName: string | null;
   selectedMcpPromptData:
-    | { messages?: Array<{ content?: { type: string; text?: string } }> }
-    | null
-    | undefined;
+  | { messages?: Array<{ content?: { type: string; text?: string } }> }
+  | null
+  | undefined;
   editorRef: React.RefObject<TamboEditor | null>;
   setValue: (value: string) => void;
   onComplete: () => void;
@@ -830,7 +830,7 @@ MessageInputMcpResourceButton.displayName = "MessageInput.McpResourceButton";
  * />
  * ```
  */
-const ImageContextBadge: React.FC<StagedImageRenderProps> = ({
+const ImageContextBadge: React.FC<StagedImageState> = ({
   image,
   displayName,
   isExpanded,

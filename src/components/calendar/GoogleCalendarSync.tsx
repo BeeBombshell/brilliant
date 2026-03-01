@@ -340,7 +340,7 @@ export function GoogleCalendarSync() {
         return () => clearInterval(intervalId);
     }, [isAuthenticated, isLoading, mapGoogleToLocal, pendingDeletes, setEvents, setPendingDeletes]);
 
-    const handleEventCreated = async (action: CalendarAction) => {
+    const handleEventCreated = useCallback(async (action: CalendarAction) => {
         const { event } = action.payload as any;
 
         try {
@@ -401,9 +401,9 @@ export function GoogleCalendarSync() {
         } catch (err) {
             console.error("Error creating Google event", err);
         }
-    };
+    }, [setEvents]);
 
-    const handleEventUpdated = async (action: CalendarAction) => {
+    const handleEventUpdated = useCallback(async (action: CalendarAction) => {
         const { after } = action.payload as any;
         if (!after.googleEventId) return;
 
@@ -447,9 +447,9 @@ export function GoogleCalendarSync() {
         } catch (err) {
             console.error("Error updating Google event", err);
         }
-    };
+    }, []);
 
-    const handleEventDeleted = async (action: CalendarAction) => {
+    const handleEventDeleted = useCallback(async (action: CalendarAction) => {
         const { event } = action.payload as any;
         if (!event.googleEventId) return;
 
@@ -461,7 +461,7 @@ export function GoogleCalendarSync() {
         } catch (err) {
             console.error("Error deleting Google event", err);
         }
-    };
+    }, []);
 
     // Sync to Google (queue processor)
     useEffect(() => {
@@ -504,7 +504,7 @@ export function GoogleCalendarSync() {
         };
 
         processQueue();
-    }, [isAuthenticated, actionQueue, setActionQueue, setPendingDeletes]);
+    }, [actionQueue, handleEventCreated, handleEventDeleted, handleEventUpdated, isAuthenticated, setActionQueue, setPendingDeletes]);
 
     return null; // Headless component
 }

@@ -23,6 +23,31 @@ import { Field, FieldDescription, FieldError } from "@/components/ui/field";
 import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { IconCheck, IconClipboard, IconSparkles } from "@tabler/icons-react";
 
+function safeMarkdownUrlTransform(url: string): string {
+    const trimmed = url.trim();
+    if (trimmed.length === 0) return "";
+    if (trimmed.startsWith("//")) return "";
+
+    try {
+        const parsed = new URL(trimmed, "https://example.com");
+        const protocol = parsed.protocol.toLowerCase();
+
+        if (
+            protocol === "http:" ||
+            protocol === "https:" ||
+            protocol === "mailto:" ||
+            protocol === "tel:"
+        ) {
+            return trimmed;
+        }
+
+        const isRelative = trimmed.startsWith("/") || trimmed.startsWith("#") || trimmed.startsWith(".");
+        return isRelative ? trimmed : "";
+    } catch {
+        return "";
+    }
+}
+
 // --- Field type definition ---
 // Each field the AI generates matches this shape.
 
@@ -643,7 +668,24 @@ export function GenerativeForm({
                         {description && (
                             <div className="mt-3 rounded-xl bg-white/[0.03] p-3.5 border border-white/[0.05] ring-1 ring-white/[0.05] shadow-inner">
                                 <div className="prose prose-sm prose-invert max-w-none text-white/60 leading-relaxed text-[13px]">
-                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                    <ReactMarkdown
+                                        remarkPlugins={[remarkGfm]}
+                                        allowedElements={["p", "strong", "em", "ul", "ol", "li", "code", "pre", "a", "br"]}
+                                        unwrapDisallowed
+                                        urlTransform={safeMarkdownUrlTransform}
+                                        components={{
+                                            a: ({ node, ...props }) => {
+                                                void node;
+                                                return (
+                                                    <a
+                                                        {...props}
+                                                        target="_blank"
+                                                        rel="noreferrer noopener"
+                                                    />
+                                                );
+                                            },
+                                        }}
+                                    >
                                         {description}
                                     </ReactMarkdown>
                                 </div>
@@ -682,7 +724,7 @@ export function GenerativeForm({
                                             </div>
                                         </div>
                                         <div className={gridClass}>
-                                            {sectionFields.map(renderField)}
+                                            {sectionFields.map((f, index) => renderField(f, index))}
                                         </div>
                                         {idx < sections.length - 1 && (
                                             <div className="border-b border-border/30" />
@@ -701,13 +743,13 @@ export function GenerativeForm({
                                 if (unsectioned.length === 0) return null;
                                 return (
                                     <div className={gridClass}>
-                                        {unsectioned.map(renderField)}
+                                        {unsectioned.map((f, index) => renderField(f, index))}
                                     </div>
                                 );
                             })()}
                         </div>
                     ) : (
-                        <div className={gridClass}>{fields.map(renderField)}</div>
+                        <div className={gridClass}>{fields.map((f, index) => renderField(f, index))}</div>
                     )}
                 </div>
 

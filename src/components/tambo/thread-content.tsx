@@ -11,7 +11,6 @@ import {
 } from "@/components/tambo/message";
 import { cn } from "@/lib/utils";
 import {
-  type Content,
   type TamboThreadMessage,
   useTambo,
 } from "@tambo-ai/react";
@@ -78,7 +77,7 @@ export interface ThreadContentProps extends React.HTMLAttributes<HTMLDivElement>
  */
 const ThreadContent = React.forwardRef<HTMLDivElement, ThreadContentProps>(
   ({ children, className, variant, ...props }, ref) => {
-    const { messages, isIdle } = useTambo();
+    const { messages, isIdle } = useTambo() as any;
     const isGenerating = !isIdle;
 
     const contextValue = React.useMemo(
@@ -129,17 +128,30 @@ const ThreadContentMessages = React.forwardRef<
 >(({ className, ...props }, ref) => {
   const { messages, isGenerating, variant } = useThreadContentContext();
 
-  const filteredMessages = messages.filter((message) => {
+  const filteredMessages = messages.filter((message, index) => {
     if (message.role === "system") return false;
     // Hide messages that only contain tool_result content blocks.
     // These are consumed by ToolcallInfo on the preceding tool_use message
     // and shouldn't render as standalone message bubbles.
     if (
       message.content.length > 0 &&
-      message.content.every((block) => block.type === "tool_result")
+      (message.content as any[]).every((block) => block.type === "tool_result")
     ) {
       return false;
     }
+
+    // Hide empty assistant messages while generating to prevent "skeleton" flash
+    const isLast = index === messages.length - 1;
+    const isEmpty = message.content.length === 0 && !message.reasoning;
+    if (
+      message.role === "assistant" &&
+      isGenerating &&
+      isLast &&
+      isEmpty
+    ) {
+      return false;
+    }
+
     return true;
   });
 
@@ -182,7 +194,7 @@ const ThreadContentMessages = React.forwardRef<
               >
                 <ReasoningInfo />
                 <MessageImages />
-                {message.content.map((block, blockIndex) => {
+                {(message.content as any[]).map((block, blockIndex) => {
                   switch (block.type) {
                     case "text":
                     case "resource":
@@ -206,11 +218,6 @@ const ThreadContentMessages = React.forwardRef<
                       // component is rendered by MessageRenderedComponentArea below.
                       return null;
                     default: {
-                      const _exhaustive: never = block;
-                      console.error(
-                        "Unknown content block type:",
-                        (_exhaustive as Content).type,
-                      );
                       return null;
                     }
                   }

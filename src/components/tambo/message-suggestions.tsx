@@ -4,7 +4,13 @@ import { MessageGenerationStage } from "./message-generation-stage";
 import { Tooltip, TooltipProvider } from "./suggestions-tooltip";
 import { cn } from "@/lib/utils";
 import type { Suggestion, TamboThreadMessage } from "@tambo-ai/react";
-import { useTambo, useTamboSuggestions } from "@tambo-ai/react";
+import {
+  useTambo,
+  useTamboSuggestions,
+  useTamboThreadInput,
+  TamboThreadInputProvider,
+} from "@tambo-ai/react";
+import { AnimatePresence, motion } from "framer-motion";
 import * as React from "react";
 import { useEffect, useRef } from "react";
 
@@ -21,11 +27,13 @@ interface MessageSuggestionsContextValue {
   suggestions: Suggestion[];
   selectedSuggestionId: string | null;
   accept: (options: { suggestion: Suggestion }) => Promise<void>;
+  submit: () => Promise<void | any>;
   isGenerating: boolean;
   error: Error | null;
   messages: TamboThreadMessage[];
   isStreaming: boolean;
   isMac: boolean;
+  setValue: (value: string) => void;
 }
 
 /**
@@ -90,6 +98,40 @@ const MessageSuggestions = React.forwardRef<
     },
     ref,
   ) => {
+    return (
+      <TamboThreadInputProvider>
+        <MessageSuggestionsContent
+          ref={ref}
+          maxSuggestions={maxSuggestions}
+          initialSuggestions={initialSuggestions}
+          className={className}
+          {...props}
+        >
+          {children}
+        </MessageSuggestionsContent>
+      </TamboThreadInputProvider>
+    );
+  },
+);
+MessageSuggestions.displayName = "MessageSuggestions";
+
+/**
+ * Internal content component that uses the isolated ThreadInput context
+ */
+const MessageSuggestionsContent = React.forwardRef<
+  HTMLDivElement,
+  MessageSuggestionsProps
+>(
+  (
+    {
+      children,
+      className,
+      maxSuggestions = 3,
+      initialSuggestions = [],
+      ...props
+    },
+    ref,
+  ) => {
     const { messages, isStreaming } = useTambo();
     const {
       suggestions: generatedSuggestions,
@@ -99,16 +141,14 @@ const MessageSuggestions = React.forwardRef<
       error,
     } = useTamboSuggestions({ maxSuggestions });
 
-    // Combine initial and generated suggestions, but only use initial ones when thread is empty
+    // Combine initial and generated suggestions
+    // Fallback to initial suggestions if generated ones are empty
     const suggestions = React.useMemo(() => {
-      // Only use pre-seeded suggestions if thread is empty
-      if (!messages.length && initialSuggestions.length > 0) {
-        return initialSuggestions.slice(0, maxSuggestions);
+      if (generatedSuggestions && generatedSuggestions.length > 0) {
+        return generatedSuggestions;
       }
-      // Otherwise use generated suggestions
-      return generatedSuggestions;
+      return initialSuggestions.slice(0, maxSuggestions);
     }, [
-      messages.length,
       generatedSuggestions,
       initialSuggestions,
       maxSuggestions,
@@ -121,26 +161,35 @@ const MessageSuggestions = React.forwardRef<
     const lastAiMessageIdRef = useRef<string | null>(null);
     const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+    const { submit, setValue } = useTamboThreadInput();
+
     const contextValue = React.useMemo(
       () => ({
         suggestions,
         selectedSuggestionId,
         accept,
+        submit,
         isGenerating,
         error,
         messages,
         isStreaming,
         isMac,
+        setValue: (val: string) => {
+          console.log("Setting suggestion value:", val);
+          setValue(val);
+        },
       }),
       [
         suggestions,
         selectedSuggestionId,
         accept,
+        submit,
         isGenerating,
         error,
         messages,
         isStreaming,
         isMac,
+        setValue,
       ],
     );
 
@@ -160,7 +209,7 @@ const MessageSuggestions = React.forwardRef<
           clearTimeout(loadingTimeoutRef.current);
         }
 
-        loadingTimeoutRef.current = setTimeout(() => {}, 5000);
+        loadingTimeoutRef.current = setTimeout(() => { }, 5000);
       }
 
       return () => {
@@ -184,7 +233,21 @@ const MessageSuggestions = React.forwardRef<
           if (!isNaN(keyNum) && keyNum > 0 && keyNum <= suggestions.length) {
             event.preventDefault();
             const suggestionIndex = keyNum - 1;
-            void accept({ suggestion: suggestions[suggestionIndex] });
+            void (async () => {
+              const suggestion = suggestions[suggestionIndex];
+              await accept({ suggestion });
+
+              const textToSet = (suggestion as any).text || (suggestion as any).prompt || (suggestion as any).content || suggestion.title;
+              if (textToSet) {
+                setValue(textToSet);
+              }
+
+              try {
+                await submit();
+              } catch (e) {
+                console.error("Shortcut submission failed", e);
+              }
+            })();
           }
         }
       };
@@ -194,7 +257,7 @@ const MessageSuggestions = React.forwardRef<
       return () => {
         document.removeEventListener("keydown", handleKeyDown);
       };
-    }, [suggestions, accept, isMac]);
+    }, [suggestions, accept, isMac, setValue, submit]);
 
     // If we have no messages yet and no initial suggestions, render nothing
     if (!messages.length && initialSuggestions.length === 0) {
@@ -217,7 +280,7 @@ const MessageSuggestions = React.forwardRef<
     );
   },
 );
-MessageSuggestions.displayName = "MessageSuggestions";
+MessageSuggestionsContent.displayName = "MessageSuggestionsContent";
 
 /**
  * Props for the MessageSuggestionsStatus component.
@@ -255,8 +318,8 @@ const MessageSuggestionsStatus = React.forwardRef<
       data-slot="message-suggestions-status"
       {...props}
     >
-      {/* Error state */}
-      {error && (
+      {/* Error state - mute 404 errors as they are non-fatal for suggestions */}
+      {error && !error.message.includes("404") && (
         <div className="p-2 rounded-md text-sm bg-red-50 text-red-500">
           <p>{error.message}</p>
         </div>
@@ -293,28 +356,27 @@ const MessageSuggestionsList = React.forwardRef<
   HTMLDivElement,
   MessageSuggestionsListProps
 >(({ className, ...props }, ref) => {
-  const { suggestions, selectedSuggestionId, accept, isGenerating, isMac } =
+  const { suggestions, selectedSuggestionId, accept, submit, isGenerating, isMac, isStreaming, setValue } =
     useMessageSuggestionsContext();
 
   const modKey = isMac ? "⌘" : "Ctrl";
   const altKey = isMac ? "⌥" : "Alt";
 
-  // Create placeholder suggestions when there are no real suggestions
-  const placeholders = Array(3).fill(null);
 
   return (
     <div
       ref={ref}
       className={cn(
-        "flex space-x-2 overflow-x-auto pb-2 rounded-md bg-transparent min-h-[2.5rem]",
-        isGenerating ? "opacity-70" : "",
+        "flex space-x-2 overflow-x-auto pb-2 rounded-md bg-transparent min-h-[2.5rem] scrollbar-hide py-1",
+        isGenerating ? "opacity-70 pointer-events-none" : "",
         className,
       )}
       data-slot="message-suggestions-list"
       {...props}
     >
-      {suggestions.length > 0
-        ? suggestions.map((suggestion, index) => (
+      <AnimatePresence mode="popLayout">
+        {suggestions.length > 0
+          ? suggestions.map((suggestion, index) => (
             <Tooltip
               key={suggestion.id}
               content={
@@ -324,36 +386,72 @@ const MessageSuggestionsList = React.forwardRef<
               }
               side="top"
             >
-              <button
+              <motion.button
+                layout
+                initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: -10 }}
+                transition={{
+                  duration: 0.2,
+                  delay: index * 0.05,
+                  type: "spring",
+                  stiffness: 300,
+                  damping: 25
+                }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                type="button"
                 className={cn(
-                  "py-2 px-2.5 rounded-2xl text-xs transition-colors",
-                  "border border-flat",
+                  "py-2 px-4 rounded-full text-[13px] transition-all whitespace-nowrap flex-shrink-0 relative overflow-hidden group border",
                   getSuggestionButtonClassName({
                     isGenerating,
                     isSelected: selectedSuggestionId === suggestion.id,
                   }),
                 )}
-                onClick={async () =>
-                  !isGenerating && (await accept({ suggestion }))
-                }
+                onClick={async () => {
+                  console.log("Suggestion clicked:", suggestion);
+                  if (!isGenerating && !isStreaming) {
+                    try {
+                      const textToSet = (suggestion as any).text || (suggestion as any).prompt || (suggestion as any).content || suggestion.title;
+
+                      if (textToSet) {
+                        setValue(textToSet);
+                      }
+
+                      // Small delay to ensure state updates have propagated
+                      await new Promise(resolve => setTimeout(resolve, 80));
+
+                      console.log("Submitting suggestion text...");
+                      await submit();
+                    } catch (e) {
+                      console.error("Suggestion submission failed", e);
+                      await submit().catch(() => { });
+                    }
+                  }
+                }}
                 disabled={isGenerating}
                 data-suggestion-id={suggestion.id}
                 data-suggestion-index={index}
               >
-                <span className="font-medium">{suggestion.title}</span>
-              </button>
+                {isGenerating && (
+                  <motion.div
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent z-10"
+                    animate={{
+                      x: ["-100%", "100%"],
+                    }}
+                    transition={{
+                      repeat: Infinity,
+                      duration: 1.5,
+                      ease: "linear",
+                    }}
+                  />
+                )}
+                <span className="font-medium relative z-20">{suggestion.title}</span>
+              </motion.button>
             </Tooltip>
           ))
-        : // Render placeholder buttons when no suggestions are available
-          placeholders.map((_, index) => (
-            <div
-              key={`placeholder-${index}`}
-              className="py-2 px-2.5 rounded-2xl text-xs border border-flat bg-muted/20 text-transparent animate-pulse"
-              data-placeholder-index={index}
-            >
-              <span className="invisible">Placeholder</span>
-            </div>
-          ))}
+          : null}
+      </AnimatePresence>
     </div>
   );
 });
@@ -370,12 +468,12 @@ function getSuggestionButtonClassName({
   isSelected: boolean;
 }) {
   if (isGenerating) {
-    return "bg-muted/50 text-muted-foreground";
+    return "bg-muted/50 text-muted-foreground border-transparent opacity-50 cursor-not-allowed";
   }
   if (isSelected) {
-    return "bg-accent text-accent-foreground";
+    return "bg-primary/10 text-primary border-primary/30 shadow-sm";
   }
-  return "bg-background hover:bg-accent hover:text-accent-foreground";
+  return "bg-white dark:bg-zinc-800/50 hover:bg-gray-50 dark:hover:bg-zinc-800 text-foreground border-border/60 shadow-sm hover:shadow-md hover:-translate-y-0.5";
 }
 
 export {

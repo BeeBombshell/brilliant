@@ -81,8 +81,8 @@ const messageInputVariants = cva("w-full", {
       solid: [
         "[&>div]:bg-background",
         "[&>div]:border-0",
-        "[&>div]:shadow-xl [&>div]:shadow-black/5 [&>div]:dark:shadow-black/20",
-        "[&>div]:ring-1 [&>div]:ring-black/5 [&>div]:dark:ring-white/10",
+        "[&>div]:shadow-none",
+        "[&>div]:ring-0",
         "[&_textarea]:bg-transparent",
         "[&_textarea]:rounded-lg",
       ].join(" "),
@@ -140,9 +140,9 @@ const MessageInput = React.forwardRef<HTMLFormElement, MessageInputProps>(
           {/* Use data-* classes for styling, render props only for behavior changes */}
           <MessageInputBase.Content
             className={cn(
-              "group relative flex flex-col rounded-xl bg-background shadow-md p-2 px-3 border",
+              "group relative flex flex-col rounded-xl bg-background shadow-md p-2 px-3",
               // Styling via data attributes - no render prop needed for drag state
-              "border-border data-dragging:border-dashed data-dragging:border-emerald-400",
+              "data-dragging:border-dashed data-dragging:border-emerald-400",
             )}
             render={(_props, { elicitation, resolveElicitation }) => (
               <>

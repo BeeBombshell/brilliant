@@ -83,7 +83,7 @@ export function ChatPane({ onClose }: ChatPaneProps) {
     startNewThread,
     switchThread,
     isIdle,
-  } = useTambo();
+  } = useTambo() as any;
 
 
   const { data: threadListData } = useTamboThreadList();
@@ -98,8 +98,19 @@ export function ChatPane({ onClose }: ChatPaneProps) {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   const filteredMessages = useMemo(() => {
-    return messages.filter((message) => {
+    // Sort messages by createdAt to ensure correct chronological order
+    // Missing createdAt (optimistic messages) are placed at the end
+    const sorted = [...messages].sort((a, b) => {
+      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : Infinity;
+      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : Infinity;
+      return timeA - timeB;
+    });
+
+    return sorted.filter((message, index) => {
+      // Hide system messages
       if (message.role === "system") return false;
+
+      // Hide messages that only contain tool_result content blocks
       if (
         Array.isArray(message.content) &&
         message.content.length > 0 &&
@@ -107,9 +118,23 @@ export function ChatPane({ onClose }: ChatPaneProps) {
       ) {
         return false;
       }
+
+      // Hide empty assistant messages while generating to prevent layout shifts
+      const isGenerating = !isIdle;
+      const isLast = index === sorted.length - 1;
+      const isEmpty = (!message.content || (Array.isArray(message.content) && message.content.length === 0)) && !message.reasoning;
+      if (
+        message.role === "assistant" &&
+        isGenerating &&
+        isLast &&
+        isEmpty
+      ) {
+        return false;
+      }
+
       return true;
     });
-  }, [messages]);
+  }, [messages, isIdle]);
 
   const handleRevert = (messageId: string) => {
     const checkpoint = checkpoints.find(c => c.messageId === messageId);
@@ -287,7 +312,10 @@ export function ChatPane({ onClose }: ChatPaneProps) {
                   : [];
 
                 return (
-                  <div key={message.id || index} className="flex flex-col w-full">
+                  <div
+                    key={message.id ?? `${message.role}-${index}-${message.createdAt}`}
+                    className="flex flex-col w-full"
+                  >
                     <Message
                       role={isAssistant ? "assistant" : "user"}
                       message={message}
@@ -312,7 +340,7 @@ export function ChatPane({ onClose }: ChatPaneProps) {
                           </div>
                         ) : (
                           <div className="flex flex-col gap-2 w-full max-w-[95%]">
-                            {(Array.isArray(message.content) ? message.content.some(b => b.type === "text" || b.type === "resource") : typeof message.content === "string") || (isPending && isLastMessage) ? (
+                            {(Array.isArray(message.content) ? (message.content as any[]).some(b => b.type === "text" || b.type === "resource") : (typeof message.content === "string" && (message.content as string).length > 0)) ? (
                               <div className="bg-gray-100 dark:bg-[#2a2a2e] border border-border/50 text-foreground shadow-sm rounded-[20px] rounded-tl-[4px] px-4 py-3 text-[14px] leading-relaxed">
                                 <MessageContent
                                   content={message.content}
@@ -358,13 +386,20 @@ export function ChatPane({ onClose }: ChatPaneProps) {
             </div>
           </ScrollableMessageContainer>
 
-          <MessageSuggestions className="px-4" initialSuggestions={[]}>
-            <MessageSuggestionsStatus />
-            <MessageSuggestionsList />
-          </MessageSuggestions>
 
           <div className="p-3 pt-1">
             <MessageInput variant="solid" className="w-full">
+              <MessageSuggestions
+                className="px-0 pb-2"
+                initialSuggestions={[
+                  { id: "1", title: "Show my schedule for today", messageId: "init", detailedSuggestion: "Show my schedule for today" } as any,
+                  { id: "2", title: "What's on my calendar this week?", messageId: "init", detailedSuggestion: "What's on my calendar this week?" } as any,
+                  { id: "3", title: "Organize my afternoon", messageId: "init", detailedSuggestion: "Organize my afternoon" } as any,
+                ]}
+              >
+                <MessageSuggestionsStatus />
+                <MessageSuggestionsList />
+              </MessageSuggestions>
               <MessageInputTextarea
                 placeholder="What do you need on your calendar?"
                 className="text-sm min-h-[44px]"

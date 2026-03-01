@@ -1,164 +1,122 @@
-import { useMemo, useRef, useEffect, useState } from "react";
-import { useAtom } from "jotai";
+import { useMemo, useRef, useEffect } from "react";
+import { useAtom, useAtomValue } from "jotai";
 
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { IconMenu2 } from "@tabler/icons-react";
-import { MessageBox } from "@/components/chat/MessageBox";
+import { IconMenu2, IconRotateClockwise } from "@tabler/icons-react";
+import { Check, Loader2 } from "lucide-react";
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { ThreadHistoryPanel } from "@/components/chat/ThreadHistoryPanel";
-import { ChatMessages, type ChatMessage } from "@/components/chat/ChatMessages";
-import { SuggestionsPanel } from "@/components/chat/SuggestionsPanel";
-// import { RecentChangesPanel } from "@/components/chat/RecentChangesPanel";
-// import { actionLogAtom } from "@/state/calendarAtoms";
 
-import { useTamboSuggestions, useTamboThread, useTamboThreadInput, useTamboThreadList } from "@tambo-ai/react";
-import type { TamboThreadMessage } from "@tambo-ai/react";
+import { useTambo, useTamboThreadList } from "@tambo-ai/react";
 import { checkpointsAtom, eventsAtom, actionHistoryAtom, chatThreadIdAtom } from "@/state/calendarAtoms";
 import { useGoogleAuth } from "@/contexts/GoogleAuthContext";
+
+import {
+  Message,
+  MessageContent,
+  MessageImages,
+  MessageRenderedComponentArea,
+  ReasoningInfo,
+} from "@/components/tambo/message";
+import {
+  MessageInput,
+  MessageInputTextarea,
+  MessageInputToolbar,
+  MessageInputSubmitButton,
+  MessageInputFileButton,
+  MessageInputError,
+} from "@/components/tambo/message-input";
+import {
+  MessageSuggestions,
+  MessageSuggestionsList,
+  MessageSuggestionsStatus,
+} from "@/components/tambo/message-suggestions";
+import { ScrollableMessageContainer } from "@/components/tambo/scrollable-message-container";
+import { cn } from "@/lib/utils";
+import { ErrorBoundary } from "./ErrorBoundary";
+
+const ACTION_LABELS: Record<string, { active: string; done: string }> = {
+  createCalendarEvent: { active: "Creating event", done: "Event created" },
+  createRecurringEvent: { active: "Creating recurring event", done: "Recurring event created" },
+  updateCalendarEvent: { active: "Updating event", done: "Event updated" },
+  deleteCalendarEvent: { active: "Deleting event", done: "Event deleted" },
+  getCalendarEvents: { active: "Fetching events", done: "Events fetched" },
+  reorganizeEvents: { active: "Reorganizing schedule", done: "Schedule reorganized" },
+};
+
+function ToolCallBadge({ block, isStreaming }: { block: any; isStreaming: boolean }) {
+  const toolName = block.name || "";
+  const labels = ACTION_LABELS[toolName] || { active: `Running ${toolName}`, done: `${toolName}` };
+  const label = isStreaming ? labels.active : labels.done;
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors",
+        isStreaming
+          ? "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400"
+          : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400"
+      )}
+    >
+      {isStreaming ? (
+        <Loader2 className="w-3 h-3 animate-spin" />
+      ) : (
+        <Check className="w-3 h-3" />
+      )}
+      {label}
+    </span>
+  );
+}
 
 interface ChatPaneProps {
   onClose?: () => void;
 }
 
 export function ChatPane({ onClose }: ChatPaneProps) {
-  // const [actionLog] = useAtom(actionLogAtom);
-
   const [threadId, setThreadId] = useAtom(chatThreadIdAtom);
   const { user } = useGoogleAuth();
   const storageKey = useMemo(() => `tambo_last_thread_id_${user?.email ?? "guest"}`, [user?.email]);
 
-  // Tambo AI hooks - these use the threadId from the provider
-  const { thread, startNewThread, switchCurrentThread, generationStage, generationStatusMessage, sendThreadMessage } = useTamboThread();
-  const { data: threadList } = useTamboThreadList();
-  const { value, setValue, submit, isPending } = useTamboThreadInput();
   const {
-    suggestions,
-    accept,
-    isPending: isSuggestionsPending,
-    isError: isSuggestionsError,
-    error: suggestionsError,
-  } = useTamboSuggestions({ maxSuggestions: 3 });
-  const [retryingToolId, setRetryingToolId] = useState<string | null>(null);
+    messages,
+    currentThreadId,
+    startNewThread,
+    switchThread,
+    isIdle,
+  } = useTambo();
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
-  // Combine mock messages with real Tambo thread messages
-  const orderedMessages = useMemo<ChatMessage[]>(() => {
-    const mockMessages: ChatMessage[] = [
-      {
-        id: "1",
-        role: "assistant",
-        content: "Tell me what you want to get done this week and I'll build a schedule.",
-      },
-    ];
+  const { data: threadListData } = useTamboThreadList();
 
-    // Convert Tambo thread messages into ChatMessage format
-    const tamboMessages: ChatMessage[] = thread?.messages
-      ?.filter((msg: TamboThreadMessage) => msg.role !== "system" && !msg.parentMessageId)
-      .map((msg: TamboThreadMessage) => {
-        // --- Extract text content ---
-        let contentString = "";
-        if (msg.role === "tool") {
-          contentString = "";
-        } else if (typeof msg.content === "string") {
-          contentString = msg.content;
-        } else if (Array.isArray(msg.content)) {
-          contentString = msg.content
-            .filter((part: any) => part?.type === "text" && part.text)
-            .map((part: any) => part.text)
-            .join("");
-        }
-
-        // --- Extract tool calls ---
-        const toolCalls: any[] = [];
-
-        // OpenAI-style top-level tool_calls
-        if ((msg as any).tool_calls) {
-          (msg as any).tool_calls.forEach((tc: any) => {
-            const id = tc.id;
-            const name = tc.function?.name || tc.name || "Tool";
-            let input = tc.input || tc.function?.arguments || {};
-            try {
-              if (typeof input === "string") input = JSON.parse(input);
-            } catch { /* keep as string */ }
-
-            toolCalls.push({ id, name, input, output: undefined });
-          });
-        }
-
-        // Also check toolCallRequest from Tambo
-        const toolCallReq = (msg.toolCallRequest ?? msg.component?.toolCallRequest) as any;
-        if (toolCallReq && toolCalls.length === 0) {
-          toolCalls.push({
-            id: toolCallReq.id,
-            name: toolCallReq.function?.name ?? "Tool",
-            input: toolCallReq.function?.arguments ?? {},
-            output: undefined,
-          });
-        }
-
-        // Pair tool results from subsequent messages
-        if (toolCalls.length > 0) {
-          const allMsgs = thread?.messages ?? [];
-          const thisIdx = allMsgs.indexOf(msg);
-          for (let i = thisIdx + 1; i < allMsgs.length; i++) {
-            const nextMsg = allMsgs[i];
-            if (nextMsg.role === "tool" || (nextMsg as any).role === "tool") {
-              const toolCallId = (nextMsg as any).tool_call_id;
-              const matched = toolCalls.find(tc => tc.id === toolCallId);
-              if (matched && !matched.output) {
-                try {
-                  const parsed = typeof nextMsg.content === "string"
-                    ? JSON.parse(nextMsg.content)
-                    : nextMsg.content;
-                  matched.output = parsed;
-                } catch {
-                  matched.output = nextMsg.content;
-                }
-              }
-            }
-            // Stop when we hit the next non-tool message
-            if (nextMsg.role !== "tool") break;
-          }
-        }
-
-        return {
-          id: msg.id,
-          role: msg.role as "user" | "assistant",
-          content: contentString.trim(),
-          toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-          renderedComponent: msg.renderedComponent,
-        };
-      })
-      .filter((msg: ChatMessage) => {
-        // Always keep messages that have tool calls or rendered components
-        if (msg.toolCalls && msg.toolCalls.length > 0) return true;
-        if (msg.renderedComponent) return true;
-
-        // Hide empty assistant messages
-        if (msg.role === "assistant" && !msg.content) return false;
-
-        // Hide tool-role messages (already paired above)
-        return msg.content.trim() !== "" || msg.role === "user";
-      }) || [];
-
-    return [...mockMessages, ...tamboMessages];
-  }, [thread?.messages]);
+  const isPending = !isIdle;
 
   const [checkpoints, setCheckpoints] = useAtom(checkpointsAtom);
   const [, setEvents] = useAtom(eventsAtom);
   const [, setHistory] = useAtom(actionHistoryAtom);
+  const history = useAtomValue(actionHistoryAtom);
+
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  const filteredMessages = useMemo(() => {
+    return messages.filter((message) => {
+      if (message.role === "system") return false;
+      if (
+        Array.isArray(message.content) &&
+        message.content.length > 0 &&
+        message.content.every((block) => block.type === "tool_result")
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [messages]);
 
   const handleRevert = (messageId: string) => {
     const checkpoint = checkpoints.find(c => c.messageId === messageId);
     if (!checkpoint) return;
 
-    // Get the actions to undo
     const actionsToUndo = history.slice(checkpoint.historyIndex);
 
-    // Directly update atoms - revert each action
     setEvents(prevEvents => {
       let newEvents = [...prevEvents];
 
@@ -182,50 +140,43 @@ export function ChatPane({ onClose }: ChatPaneProps) {
       return newEvents;
     });
 
-    // Update state
     setHistory(prev => prev.slice(0, checkpoint.historyIndex));
     setCheckpoints(prev => prev.filter(c => c.messageId !== messageId));
   };
 
   const handleNewChat = () => {
-    // Reset local state
     setCheckpoints([]);
-    setValue("");
-
-    // Start a new thread via Tambo
     if (startNewThread) {
       startNewThread();
     }
   };
 
   const switchToThread = (id: string) => {
-    // Use Tambo's API to switch threads
-    if (switchCurrentThread) {
-      switchCurrentThread(id);
+    if (switchThread) {
+      switchThread(id);
     }
   };
 
   const threadHistoryItems = useMemo(() => {
-    const items = (threadList as any)?.items ?? (threadList as any)?.threads ?? threadList ?? [];
-    if (!Array.isArray(items)) return [];
-    return items.map((t: any) => ({
+    const rawThreads = (threadListData as any)?.threads || (threadListData as any)?.items || (Array.isArray(threadListData) ? threadListData : (threadListData as any)?.data || []);
+    if (!Array.isArray(rawThreads)) return [];
+
+    return rawThreads.map((t: any) => ({
       id: t.id,
-      title: t.name || t.title || t.threadName || "Untitled",
+      title: t.name || t.threadName || t.title || t.metadata?.name || `Chat ${t.id.substring(0, 8)}`,
       timestamp: t.updatedAt || t.lastUpdatedAt || t.createdAt || new Date().toISOString(),
     }));
-  }, [threadList]);
-
-  const [history] = useAtom(actionHistoryAtom);
+  }, [threadListData]);
 
   // Auto-checkpointing logic
   useEffect(() => {
     let hasChanged = false;
     const newCheckpoints = [...checkpoints];
 
-    orderedMessages.forEach((msg, idx) => {
-      if (msg.role === "assistant" && msg.toolCalls && msg.toolCalls.length > 0) {
+    filteredMessages.forEach((msg, idx) => {
+      const hasToolUse = Array.isArray(msg.content) && msg.content.some(block => block.type === "tool_use");
+      if (msg.role === "assistant" && hasToolUse) {
         if (!newCheckpoints.some(c => c.messageId === msg.id)) {
-          // Find ai actions that haven't been checkpointed yet
           const aiActions = history.filter(a => a.source === 'ai' && !newCheckpoints.some(c => c.eventIds.some(id => {
             if (a.type === 'ADD_EVENT') return id === a.payload.event.id;
             if (a.type === 'UPDATE_EVENT') return id === a.payload.after.id;
@@ -241,8 +192,7 @@ export function ChatPane({ onClose }: ChatPaneProps) {
           });
 
           if (eventIds.length > 0) {
-            // Find the user message just before this assistant message to use as the checkpoint anchor
-            const userMsgId = orderedMessages.slice(0, idx).reverse().find(m => m.role === 'user')?.id || msg.id;
+            const userMsgId = filteredMessages.slice(0, idx).reverse().find(m => m.role === 'user')?.id || msg.id;
 
             newCheckpoints.push({
               messageId: userMsgId,
@@ -258,105 +208,25 @@ export function ChatPane({ onClose }: ChatPaneProps) {
     if (hasChanged) {
       setCheckpoints(newCheckpoints);
     }
-  }, [orderedMessages, history, checkpoints, setCheckpoints]);
+  }, [filteredMessages, history, checkpoints, setCheckpoints]);
 
   useEffect(() => {
-    const container = messagesContainerRef.current;
-    if (container) {
-      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+    if (currentThreadId && currentThreadId !== threadId) {
+      setThreadId(currentThreadId);
+      localStorage.setItem(storageKey, currentThreadId);
     }
-  }, [orderedMessages, isPending]);
+  }, [currentThreadId, threadId, setThreadId, storageKey]);
 
   useEffect(() => {
-    if (thread?.id && thread?.id !== threadId) {
-      setThreadId(thread.id);
-      localStorage.setItem(storageKey, thread.id);
-    }
-  }, [thread?.id, threadId, setThreadId, storageKey]);
-
-  useEffect(() => {
-    if (!switchCurrentThread) return;
+    if (!switchThread) return;
     const storedThreadId = localStorage.getItem(storageKey);
     if (!storedThreadId) return;
-    if (thread?.id === storedThreadId) return;
-    if (thread?.messages && thread.messages.length > 0) return;
+    if (currentThreadId === storedThreadId) return;
+    if (messages && messages.length > 0) return;
     if (threadHistoryItems.some((t) => t.id === storedThreadId)) {
-      switchCurrentThread(storedThreadId);
+      switchThread(storedThreadId);
     }
-  }, [switchCurrentThread, storageKey, thread?.id, thread?.messages, threadHistoryItems]);
-
-  const handleSubmit = async (event?: React.FormEvent) => {
-    event?.preventDefault();
-    if (!value.trim() || isPending) return;
-    const submitPromise = submit({ streamResponse: true });
-    setValue("");
-    await submitPromise;
-  };
-
-  const latestAssistantMessageId = useMemo(() => {
-    const latest = [...(thread?.messages ?? [])].reverse().find(msg => msg.role === "assistant");
-    return latest?.id;
-  }, [thread?.messages]);
-
-  const hasTamboAssistantMessage = useMemo(
-    () => (thread?.messages ?? []).some(msg => msg.role === "assistant"),
-    [thread?.messages]
-  );
-
-  const visibleSuggestions = useMemo(() => {
-    if (!suggestions || suggestions.length === 0) return [];
-    if (!latestAssistantMessageId) return suggestions;
-    return suggestions.filter((suggestion: any) => suggestion.messageId === latestAssistantMessageId);
-  }, [suggestions, latestAssistantMessageId]);
-
-  const safeSuggestions = useMemo(() => {
-    return (visibleSuggestions ?? [])
-      .map((suggestion: any) => {
-        if (!suggestion) return null;
-        const title = suggestion?.title ?? suggestion?.text ?? suggestion?.detailedSuggestion ?? "Suggestion";
-        const detailedSuggestion = suggestion?.detailedSuggestion ?? suggestion?.detail ?? suggestion?.text ?? title;
-        return {
-          ...suggestion,
-          title,
-          detailedSuggestion,
-        };
-      })
-      .filter(Boolean);
-  }, [visibleSuggestions]);
-
-  const handleSuggestionAccept = async (suggestion: any) => {
-    if (!suggestion) return;
-    const detailedSuggestion =
-      suggestion.detailedSuggestion ??
-      suggestion.detail ??
-      suggestion.text ??
-      suggestion.title ??
-      "";
-    if (!detailedSuggestion) return;
-    await accept({
-      suggestion: {
-        ...suggestion,
-        detailedSuggestion,
-      },
-      shouldSubmit: true,
-    });
-  };
-
-  const handleRetryToolCall = async (toolCall: any) => {
-    if (!sendThreadMessage) return;
-    setRetryingToolId(toolCall.id ?? toolCall.name ?? "retry");
-    try {
-      const input = typeof toolCall.input === "string"
-        ? toolCall.input
-        : JSON.stringify(toolCall.input ?? {}, null, 2);
-      await sendThreadMessage(
-        `Retry the tool "${toolCall.name}" with the same input:\n${input}`,
-        { streamResponse: true }
-      );
-    } finally {
-      setRetryingToolId(null);
-    }
-  };
+  }, [switchThread, storageKey, currentThreadId, messages, threadHistoryItems]);
 
   const historyMenuTrigger = (
     <Button
@@ -370,54 +240,145 @@ export function ChatPane({ onClose }: ChatPaneProps) {
   );
 
   return (
-    <Card className="flex h-full flex-col border-l-0 border-t-0 rounded-none bg-card/80 shadow-none min-w-0 overflow-hidden">
-      <ChatHeader
-        threadHistoryMenu={(
-          <ThreadHistoryPanel
-            threadsHistory={threadHistoryItems}
-            activeThreadId={threadId}
-            onSelectThread={switchToThread}
-            onNewThread={handleNewChat}
-            trigger={historyMenuTrigger}
-          />
-        )}
-        onClose={onClose}
-      />
-
-      <div className="flex flex-1 flex-col gap-3 p-3 overflow-hidden min-h-0">
-        <ChatMessages
-          orderedMessages={orderedMessages}
-          checkpoints={checkpoints}
-          isPending={isPending}
-          generationStage={generationStage}
-          generationStatusMessage={generationStatusMessage}
-          onRevert={handleRevert}
-          onRetryToolCall={handleRetryToolCall}
-          retryingToolId={retryingToolId}
-          messagesContainerRef={messagesContainerRef}
-          messagesEndRef={messagesEndRef}
+    <div className="flex h-full flex-col bg-background min-w-0 overflow-hidden">
+      <ErrorBoundary onReset={() => window.location.reload()}>
+        <ChatHeader
+          threadHistoryMenu={(
+            <ThreadHistoryPanel
+              threadsHistory={threadHistoryItems}
+              activeThreadId={currentThreadId || threadId}
+              onSelectThread={switchToThread}
+              onNewThread={handleNewChat}
+              trigger={historyMenuTrigger}
+            />
+          )}
+          onClose={onClose}
         />
 
-        <SuggestionsPanel
-          visible={hasTamboAssistantMessage || isSuggestionsPending || isSuggestionsError}
-          isSuggestionsPending={isSuggestionsPending}
-          isSuggestionsError={isSuggestionsError}
-          suggestionsError={suggestionsError}
-          safeSuggestions={safeSuggestions}
-          isPending={isPending}
-          onAccept={handleSuggestionAccept}
-        />
+        <div className="flex flex-1 flex-col overflow-hidden min-h-0">
+          <ScrollableMessageContainer
+            ref={messagesContainerRef}
+            className="px-4 pt-4"
+          >
+            <div className="flex flex-col gap-3 pb-4">
+              {filteredMessages.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-16 text-center gap-3 text-muted-foreground">
+                  <div className="size-14 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
+                    <img src="/brilliant.svg" className="size-8" alt="Brilliant" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-foreground text-base">Welcome to Brilliant</h3>
+                    <p className="text-sm mt-1 max-w-[260px] text-muted-foreground/80">
+                      Tell me what you want to get done and I'll manage your schedule.
+                    </p>
+                  </div>
+                </div>
+              )}
 
-        {/* <RecentChangesPanel actionLog={actionLog} /> */}
+              {filteredMessages.map((message, index) => {
+                const isLastMessage = index === filteredMessages.length - 1;
+                const hasRevert = checkpoints.some((c) => c.messageId === message.id);
+                const role = message.role?.toLowerCase();
+                const isAssistant = role === "assistant";
+                const isUser = role === "user";
 
-        <MessageBox
-          value={value}
-          onChange={setValue}
-          onSubmit={() => handleSubmit()}
-          placeholder="Describe your goals, constraints, or preferences..."
-          disabled={isPending}
-        />
-      </div>
-    </Card>
+                const toolBlocks = Array.isArray(message.content)
+                  ? message.content.filter((b: any) => b.type === "tool_use")
+                  : [];
+
+                return (
+                  <div key={message.id || index} className="flex flex-col w-full">
+                    <Message
+                      role={isAssistant ? "assistant" : "user"}
+                      message={message}
+                      className={cn(
+                        "flex w-full animate-in fade-in slide-in-from-bottom-2 duration-300",
+                        isAssistant ? "justify-start" : "justify-end"
+                      )}
+                    >
+                      <div className={cn(
+                        "flex flex-col gap-1 mb-2",
+                        isAssistant ? "items-start w-full" : "items-end w-full"
+                      )}>
+                        <ReasoningInfo />
+                        <MessageImages />
+
+                        {isUser ? (
+                          <div className="bg-primary text-primary-foreground shadow-md rounded-[20px] rounded-tr-[4px] px-4 py-2.5 text-[14px] leading-relaxed max-w-[85%]">
+                            <MessageContent
+                              content={message.content}
+                              className="bg-transparent text-primary-foreground p-0"
+                            />
+                          </div>
+                        ) : (
+                          <div className="flex flex-col gap-2 w-full max-w-[95%]">
+                            {(Array.isArray(message.content) ? message.content.some(b => b.type === "text" || b.type === "resource") : typeof message.content === "string") || (isPending && isLastMessage) ? (
+                              <div className="bg-gray-100 dark:bg-[#2a2a2e] border border-border/50 text-foreground shadow-sm rounded-[20px] rounded-tl-[4px] px-4 py-3 text-[14px] leading-relaxed">
+                                <MessageContent
+                                  content={message.content}
+                                  className="bg-transparent text-foreground p-0"
+                                />
+                              </div>
+                            ) : null}
+
+                            {toolBlocks.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5 py-1">
+                                {toolBlocks.map((block: any, bIdx: number) => (
+                                  <ToolCallBadge
+                                    key={bIdx}
+                                    block={block}
+                                    isStreaming={isPending && isLastMessage}
+                                  />
+                                ))}
+                              </div>
+                            )}
+
+                            <MessageRenderedComponentArea className="w-full" />
+                          </div>
+                        )}
+
+                        {hasRevert && (
+                          <div className="mt-1 flex justify-end">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-[10px] px-3 font-medium transition-all gap-1.5 border border-primary/20 rounded-full text-primary/80 hover:text-primary hover:bg-primary/5 hover:border-primary/40 active:scale-95"
+                              onClick={() => handleRevert(message.id)}
+                            >
+                              <IconRotateClockwise size={12} className="opacity-80" />
+                              Revert schedule to here
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </Message>
+                  </div>
+                );
+              })}
+            </div>
+          </ScrollableMessageContainer>
+
+          <MessageSuggestions className="px-4" initialSuggestions={[]}>
+            <MessageSuggestionsStatus />
+            <MessageSuggestionsList />
+          </MessageSuggestions>
+
+          <div className="p-3 pt-1">
+            <MessageInput variant="solid" className="w-full">
+              <MessageInputTextarea
+                placeholder="What do you need on your calendar?"
+                className="text-sm min-h-[44px]"
+              />
+              <MessageInputToolbar>
+                <MessageInputFileButton />
+                <div className="flex-1" />
+                <MessageInputSubmitButton />
+              </MessageInputToolbar>
+              <MessageInputError />
+            </MessageInput>
+          </div>
+        </div>
+      </ErrorBoundary>
+    </div>
   );
 }

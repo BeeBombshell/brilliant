@@ -1,10 +1,7 @@
-"use client";
-
-import { TamboThreadMessage, TamboToolUseContent } from "@tambo-ai/react";
+import { type TamboThreadMessage, type TamboToolUseContent } from "@tambo-ai/react";
 import {
   Message as MessageBase,
   type MessageContentProps as MessageBaseContentProps,
-  type MessageContentRenderProps as MessageBaseContentRenderProps,
   type MessageImagesProps as MessageBaseImagesProps,
   type MessageRenderedComponentProps as MessageBaseRenderedComponentProps,
   type MessageLoadingIndicatorProps,
@@ -23,7 +20,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { Check, ChevronDown, ExternalLink, Loader2, X } from "lucide-react";
 import * as React from "react";
 import { Streamdown } from "streamdown";
-import { getSafeContent } from "../../lib/thread-hooks";
+import { getSafeContent, convertContentToMarkdown } from "../../lib/thread-hooks";
 import {
   createMarkdownComponents,
   markdownComponents,
@@ -139,8 +136,8 @@ function MessageContentRenderer({
   markdownContent: string;
   markdown: boolean;
 }) {
-  if (!contentToRender) {
-    return <span className="text-muted-foreground italic">Empty message</span>;
+  if (!markdownContent && !contentToRender) {
+    return null;
   }
   if (React.isValidElement(contentToRender)) {
     return contentToRender;
@@ -197,7 +194,11 @@ MessageImages.displayName = "MessageImages";
 /**
  * Props for the MessageContent component.
  */
-export type MessageContentProps = Omit<MessageBaseContentProps, "children">;
+export interface MessageContentProps
+  extends Omit<MessageBaseContentProps, "children" | "content"> {
+  content: TamboThreadMessage["content"];
+  markdown?: boolean;
+}
 
 /**
  * Displays the message content with optional markdown formatting.
@@ -206,17 +207,18 @@ export type MessageContentProps = Omit<MessageBaseContentProps, "children">;
  */
 const MessageContent = React.forwardRef<HTMLDivElement, MessageContentProps>(
   ({ className, content, markdown = true, ...props }, ref) => {
+    const stringContent = convertContentToMarkdown(content);
+
     return (
       <MessageBase.Content
         ref={ref}
         className={cn(
-          "relative block rounded-3xl px-4 py-2 text-[15px] leading-relaxed transition-all duration-200 font-medium max-w-full [&_p]:py-1 [&_li]:list-item",
+          "max-w-full",
           className,
         )}
-        content={content}
-        markdown={markdown}
+        content={stringContent}
         render={(
-          props,
+          renderProps: any,
           {
             content: contentToRender,
             markdownContent,
@@ -224,12 +226,12 @@ const MessageContent = React.forwardRef<HTMLDivElement, MessageContentProps>(
             isLoading,
             isCancelled,
             isReasoning,
-          }: MessageBaseContentRenderProps,
+          }: any,
         ) => {
-          if (isLoading && !isReasoning) {
+          if (isLoading && !isReasoning && !markdownContent) {
             return (
               <div
-                {...props}
+                {...renderProps}
                 className="flex items-center justify-start h-4 py-1"
                 data-slot="message-loading-indicator"
               >
@@ -240,15 +242,17 @@ const MessageContent = React.forwardRef<HTMLDivElement, MessageContentProps>(
 
           return (
             <div
+              {...renderProps}
               className={cn(
                 "wrap-break-word",
                 !markdown && "whitespace-pre-wrap",
+                renderProps.className,
               )}
               data-slot="message-content-text"
             >
               <MessageContentRenderer
-                contentToRender={contentToRender}
-                markdownContent={markdownContent}
+                contentToRender={contentToRender || stringContent}
+                markdownContent={markdownContent || stringContent}
                 markdown={markdown}
               />
               {isCancelled && (
@@ -340,8 +344,8 @@ function ToolcallInfoContent({ markdown }: { markdown: boolean }) {
           />
           <ToolcallInfoBase.Parameters
             className="whitespace-pre-wrap pl-2"
-            render={(_props, { parametersString }) => (
-              <>{`parameters:\n${parametersString}`}</>
+            render={(renderProps: any, data: any) => (
+              <div {...renderProps}>{`parameters:\n${data?.parametersString || JSON.stringify(data?.parameters || {}, null, 2)}`}</div>
             )}
           />
           <SamplingSubThread parentMessageId={message.id} />
@@ -475,7 +479,7 @@ const SamplingSubThread = ({
                   className={cn(
                     "whitespace-pre-wrap",
                     m.role === "assistant" &&
-                      "bg-muted/50 rounded-md p-2 inline-block w-fit",
+                    "bg-muted/50 rounded-md p-2 inline-block w-fit",
                   )}
                 >
                   {getSafeContent(m.content)}

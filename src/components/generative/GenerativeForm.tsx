@@ -2,7 +2,7 @@ import { useState, useId, useCallback, useMemo } from "react";
 import { z } from "zod";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { useTamboComponentState, useTamboThread } from "@tambo-ai/react";
+import { useTamboComponentState, useTamboThreadInput } from "@tambo-ai/react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -474,12 +474,13 @@ export function GenerativeForm({
         return vals;
     }, [fields]);
 
-    // Use plain useState for values — useTamboComponentState doesn't support functional updaters
-    const [values, setValues] = useState<Record<string, string>>(initialValues);
+    // Use useTamboComponentState to persist form values across re-renders during streaming
+    const [persistedValues, setValues] = useTamboComponentState<Record<string, string>>("values", initialValues);
+    const values = persistedValues ?? initialValues;
     const [submitted, setSubmitted] = useTamboComponentState<boolean>("submitted", false);
     const [errors, setErrors] = useState<Record<string, string>>({});
 
-    const { sendThreadMessage } = useTamboThread();
+    const { setValue: setInputValue, submit } = useTamboThreadInput();
 
     const handleChange = useCallback((fieldId: string, value: string) => {
         setValues((prev) => ({ ...prev, [fieldId]: value }));
@@ -490,7 +491,7 @@ export function GenerativeForm({
             delete next[fieldId];
             return next;
         });
-    }, []);
+    }, [setValues]);
 
     const validate = useCallback(() => {
         const newErrors: Record<string, string> = {};
@@ -526,7 +527,7 @@ export function GenerativeForm({
 
 
     const handleSubmit = useCallback(
-        (e: React.FormEvent) => {
+        async (e: React.FormEvent) => {
             e.preventDefault();
             const validationErrors = validate();
             if (Object.keys(validationErrors).length > 0) {
@@ -540,10 +541,15 @@ export function GenerativeForm({
                 .join("\n");
 
             const message = `Form "${title ?? "Untitled"}" submitted with the following responses:\n${summary}`;
-            sendThreadMessage(message, { streamResponse: true });
-            setSubmitted(true);
+            try {
+                setInputValue(message);
+                await submit();
+                setSubmitted(true);
+            } catch (error) {
+                console.error("Failed to submit form:", error);
+            }
         },
-        [validate, setSubmitted, fields, values, title, sendThreadMessage]
+        [validate, setSubmitted, fields, values, title, setInputValue, submit]
     );
 
     const isFormReady = useMemo(() => {
@@ -649,7 +655,7 @@ export function GenerativeForm({
     const totalSections = hasSections ? sections.length : 1;
 
     return (
-        <div className="w-full rounded-[24px] border border-white/[0.08] bg-white/[0.03] backdrop-blur-md overflow-hidden shadow-2xl transition-all duration-500 hover:border-white/[0.12]">
+        <div className="w-full rounded-[24px] border border-white/[0.08] bg-white/[0.03] backdrop-blur-md overflow-hidden shadow-2xl transition-all duration-500 hover:border-white/[0.12] pointer-events-auto relative z-10">
             {/* Form header */}
             <div className="p-4 border-b border-white/[0.05] bg-white/[0.01]">
                 <div className="flex flex-col items-start gap-3">

@@ -1,5 +1,15 @@
 import { useAtom } from "jotai";
-import { addDays, addWeeks, addMonths, subDays, subWeeks, subMonths, format } from "date-fns";
+import {
+  addDays,
+  addWeeks,
+  addMonths,
+  endOfWeek,
+  format,
+  startOfWeek,
+  subDays,
+  subWeeks,
+  subMonths,
+} from "date-fns";
 import {
   IconChevronLeft,
   IconChevronRight,
@@ -26,12 +36,14 @@ import { useCalendarActions } from "@/hooks/useCalendarActions";
 
 
 
+const weekOpts = { weekStartsOn: 0 as const };
+
 function getRangeText(view: CalendarView, date: Date) {
   const fmt = "MMM d, yyyy";
   if (view === "day") return format(date, fmt);
   if (view === "week") {
-    const start = subDays(date, date.getDay());
-    const end = addDays(start, 6);
+    const start = startOfWeek(date, weekOpts);
+    const end = endOfWeek(date, weekOpts);
     return `${format(start, fmt)} - ${format(end, fmt)}`;
   }
   const start = new Date(date.getFullYear(), date.getMonth(), 1);
@@ -42,8 +54,8 @@ function getRangeText(view: CalendarView, date: Date) {
 function getRangeTextShort(view: CalendarView, date: Date) {
   if (view === "day") return format(date, "MMM d");
   if (view === "week") {
-    const start = subDays(date, date.getDay());
-    const end = addDays(start, 6);
+    const start = startOfWeek(date, weekOpts);
+    const end = endOfWeek(date, weekOpts);
 
     const sameMonth = start.getMonth() === end.getMonth();
     const sameYear = start.getFullYear() === end.getFullYear();

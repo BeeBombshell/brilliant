@@ -527,9 +527,9 @@ export function GenerativeForm({
     }, [fields]);
 
     // Build the field rendering function with optional width support
-    const renderField = (field: FormFieldDef) => {
+    const renderField = (field: FormFieldDef, index: number) => {
         // Skip fields still streaming without an id or type
-        const fieldId = field.id ?? `_streaming_${Math.random()}`;
+        const fieldId = field.id ?? `_streaming_${index}`;
         if (!field.type || !field.label) {
             return (
                 <div key={fieldId} className="col-span-full">

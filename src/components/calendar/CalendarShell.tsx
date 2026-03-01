@@ -44,7 +44,13 @@ function getRangeTextShort(view: CalendarView, date: Date) {
   if (view === "week") {
     const start = subDays(date, date.getDay());
     const end = addDays(start, 6);
-    return `${format(start, "MMM d")} – ${format(end, "d")}`;
+
+    const sameMonth = start.getMonth() === end.getMonth();
+    const sameYear = start.getFullYear() === end.getFullYear();
+
+    if (sameMonth) return `${format(start, "MMM d")} – ${format(end, "d")}`;
+    if (sameYear) return `${format(start, "MMM d")} – ${format(end, "MMM d")}`;
+    return `${format(start, "MMM d")} – ${format(end, "MMM d, yyyy")}`;
   }
   return format(date, "MMM yyyy");
 }

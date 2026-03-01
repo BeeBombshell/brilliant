@@ -63,7 +63,7 @@ function AppWithTambo() {
           timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         }),
         calendarViewContext: () => {
-          const weekOpts = { weekStartsOn: 0 as const };
+          const weekOpts = { weekStartsOn: 0 as const }; // 0 = Sunday; keep in sync with UI/week display
 
           let rangeDescription: string;
           switch (view) {
@@ -80,6 +80,9 @@ function AppWithTambo() {
               rangeDescription = `looking at ${format(selectedDate, "MMMM yyyy")}`;
               break;
             default:
+              if (import.meta.env.DEV) {
+                console.warn("Unexpected calendar view type", view);
+              }
               rangeDescription = `looking at ${format(selectedDate, "PPPP")}`;
           }
 

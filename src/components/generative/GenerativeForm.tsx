@@ -544,6 +544,7 @@ export function GenerativeForm({
             try {
                 setInputValue(message);
                 await submit();
+                setInputValue("");
                 setSubmitted(true);
             } catch (error) {
                 console.error("Failed to submit form:", error);

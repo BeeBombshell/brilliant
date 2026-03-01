@@ -323,7 +323,12 @@ const MessageInputTextarea = ({
               value={value}
               onChange={setValue}
               onResourceNamesChange={setResourceNames}
-              onSubmit={handleSubmit}
+              onSubmit={async (e) => {
+                const val = value.trim();
+                if (!val) return;
+                void handleSubmit(e);
+                setTimeout(() => setValue(""), 0);
+              }}
               onAddImage={handleAddImage}
               placeholder={placeholder}
               disabled={disabled}
@@ -446,7 +451,8 @@ const MessageInputPlainTextarea = ({
           if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
             if (value.trim()) {
-              await submitMessage();
+              void submitMessage();
+              setTimeout(() => setValue(""), 0);
             }
           }
         };

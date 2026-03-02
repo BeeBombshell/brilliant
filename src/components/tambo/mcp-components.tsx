@@ -439,7 +439,6 @@ export const McpResourceButton = React.forwardRef<
   HTMLButtonElement,
   McpResourceButtonProps
 >(({ className, onInsertResource, ...props }, ref) => {
->(({ className, onInsertResource, ...props }, ref) => {
   const { data: resourceList, isLoading } = useTamboMcpResourceList();
   const [isOpen, setIsOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");

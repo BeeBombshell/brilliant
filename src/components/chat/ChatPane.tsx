@@ -8,7 +8,7 @@ import { ChatHeader } from "@/components/chat/ChatHeader";
 import { ThreadHistoryPanel } from "@/components/chat/ThreadHistoryPanel";
 
 import { useTambo, useTamboThreadList } from "@tambo-ai/react";
-import type { Suggestion, TamboToolUseContent, Content, UseTamboReturn } from "@tambo-ai/react";
+import type { Suggestion, TamboToolUseContent, Content, TextContent, UseTamboReturn } from "@tambo-ai/react";
 import { checkpointsAtom, eventsAtom, actionHistoryAtom, chatThreadIdAtom } from "@/state/calendarAtoms";
 import { useGoogleAuth } from "@/contexts/GoogleAuthContext";
 
@@ -328,6 +328,14 @@ export function ChatPane({ onClose }: ChatPaneProps) {
                 const isAssistant = role === "assistant";
                 const isUser = role === "user";
 
+                const assistantContent = message.content as unknown as Content[] | string;
+                const assistantContentBlocks: Content[] = Array.isArray(assistantContent)
+                  ? assistantContent
+                  : ([{ type: "text", text: assistantContent } satisfies TextContent] as Content[]);
+                const assistantHasTextOrResource = assistantContentBlocks.some(
+                  (b) => b.type === "text" || b.type === "resource"
+                );
+
                 const toolBlocks = Array.isArray(message.content)
                   ? message.content.filter(isToolUseBlock)
                   : [];
@@ -361,10 +369,10 @@ export function ChatPane({ onClose }: ChatPaneProps) {
                           </div>
                         ) : (
                           <div className="flex flex-col gap-2 w-full max-w-[95%]">
-                            {message.content.some((b) => b.type === "text" || b.type === "resource") ? (
+                            {assistantHasTextOrResource ? (
                               <div className="bg-gray-100 dark:bg-[#2a2a2e] border border-border/50 text-foreground shadow-sm rounded-[20px] rounded-tl-[4px] px-4 py-3 text-[14px] leading-relaxed">
                                 <MessageContent
-                                  content={message.content}
+                                  content={assistantContentBlocks}
                                   className="bg-transparent text-foreground p-0"
                                 />
                               </div>

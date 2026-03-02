@@ -125,6 +125,28 @@ export function ChatPane({ onClose }: ChatPaneProps) {
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
+  const handleChatReset = () => {
+    setCheckpoints([]);
+    setThreadId(null);
+
+    try {
+      localStorage.removeItem(storageKey);
+    } catch {
+      // ignore
+    }
+
+    try {
+      if (startNewThread) {
+        startNewThread();
+        return;
+      }
+    } catch {
+      // ignore
+    }
+
+    window.location.reload();
+  };
+
   const filteredMessages = useMemo(() => {
     const orderedMessages = isIdle ? getStableOrderedMessages(messages) : messages;
 
@@ -287,7 +309,7 @@ export function ChatPane({ onClose }: ChatPaneProps) {
 
   return (
     <div className="flex h-full flex-col bg-background min-w-0 overflow-hidden">
-      <ErrorBoundary onReset={() => window.location.reload()}>
+      <ErrorBoundary onReset={handleChatReset}>
         <ChatHeader
           threadHistoryMenu={(
             <ThreadHistoryPanel

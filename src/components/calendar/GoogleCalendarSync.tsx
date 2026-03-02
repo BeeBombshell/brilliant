@@ -429,11 +429,11 @@ export function GoogleCalendarSync() {
             }));
 
             propagateGoogleEventIdToQueue({ localEventId: event.id, googleEventId });
-
             console.log("Successfully created Google event", response.result.id);
         } catch (err) {
             console.error("Error creating Google event", err);
         }
+    }, [propagateGoogleEventIdToQueue, setActionHistory, setEvents, setRedoStack]);
     }, [propagateGoogleEventIdToQueue, setActionHistory, setEvents, setRedoStack]);
 
     const handleEventUpdated = useCallback(async (action: CalendarAction) => {

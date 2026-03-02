@@ -35,8 +35,23 @@ export function DatePicker({
 
     const date = React.useMemo(() => {
         if (!value) return undefined
-        const d = new Date(value)
-        return isNaN(d.getTime()) ? undefined : d
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined
+
+        const [yearStr, monthStr, dayStr] = value.split("-")
+        const year = Number(yearStr)
+        const month = Number(monthStr)
+        const day = Number(dayStr)
+
+        const d = new Date(year, month - 1, day)
+        if (
+            d.getFullYear() !== year ||
+            d.getMonth() !== month - 1 ||
+            d.getDate() !== day
+        ) {
+            return undefined
+        }
+
+        return d
     }, [value])
 
     const [isOpen, setIsOpen] = React.useState(false)

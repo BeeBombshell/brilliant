@@ -7,9 +7,26 @@ import { Check, Loader2 } from "lucide-react";
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { ThreadHistoryPanel } from "@/components/chat/ThreadHistoryPanel";
 
-import { TamboThreadInputProvider, useTambo, useTamboThreadList } from "@tambo-ai/react";
-import type { Content, Suggestion, TamboToolUseContent, TextContent, UseTamboReturn } from "@tambo-ai/react";
-import { checkpointsAtom, eventsAtom, actionHistoryAtom, chatThreadIdAtom } from "@/state/calendarAtoms";
+import {
+  TamboThreadInputProvider,
+  useTambo,
+  useTamboThreadList,
+} from "@tambo-ai/react";
+import type {
+  Content,
+  Suggestion,
+  TamboToolUseContent,
+  TextContent,
+  UseTamboReturn,
+} from "@tambo-ai/react";
+import {
+  checkpointsAtom,
+  eventsAtom,
+  actionHistoryAtom,
+  chatThreadIdAtom,
+} from "@/state/calendarAtoms";
+import { emitCalendarActionEffectAtom } from "@/state/calendarEffects";
+import type { CalendarAction } from "@/types/calendar";
 import { useGoogleAuth } from "@/contexts/GoogleAuthContext";
 
 import {
@@ -38,11 +55,17 @@ import { ErrorBoundary } from "./ErrorBoundary";
 
 const ACTION_LABELS: Record<string, { active: string; done: string }> = {
   createCalendarEvent: { active: "Creating event", done: "Event created" },
-  createRecurringEvent: { active: "Creating recurring event", done: "Recurring event created" },
+  createRecurringEvent: {
+    active: "Creating recurring event",
+    done: "Recurring event created",
+  },
   updateCalendarEvent: { active: "Updating event", done: "Event updated" },
   deleteCalendarEvent: { active: "Deleting event", done: "Event deleted" },
   getCalendarEvents: { active: "Fetching events", done: "Events fetched" },
-  reorganizeEvents: { active: "Reorganizing schedule", done: "Schedule reorganized" },
+  reorganizeEvents: {
+    active: "Reorganizing schedule",
+    done: "Schedule reorganized",
+  },
 };
 
 function getStableOrderedMessages(messages: UseTamboReturn["messages"]) {
@@ -69,9 +92,18 @@ function getStableOrderedMessages(messages: UseTamboReturn["messages"]) {
     .map((e) => e.message);
 }
 
-function ToolCallBadge({ block, isStreaming }: { block: TamboToolUseContent; isStreaming: boolean }) {
+function ToolCallBadge({
+  block,
+  isStreaming,
+}: {
+  block: TamboToolUseContent;
+  isStreaming: boolean;
+}) {
   const toolName = block.name || "tool";
-  const labels = ACTION_LABELS[toolName] || { active: `Running ${toolName}`, done: toolName };
+  const labels = ACTION_LABELS[toolName] || {
+    active: `Running ${toolName}`,
+    done: toolName,
+  };
   const label = isStreaming ? labels.active : labels.done;
 
   return (
@@ -80,7 +112,7 @@ function ToolCallBadge({ block, isStreaming }: { block: TamboToolUseContent; isS
         "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors",
         isStreaming
           ? "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400"
-          : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400"
+          : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400",
       )}
     >
       {isStreaming ? (
@@ -104,15 +136,13 @@ interface ChatPaneProps {
 export function ChatPane({ onClose }: ChatPaneProps) {
   const [threadId, setThreadId] = useAtom(chatThreadIdAtom);
   const { user } = useGoogleAuth();
-  const storageKey = useMemo(() => `tambo_last_thread_id_${user?.email ?? "guest"}`, [user?.email]);
+  const storageKey = useMemo(
+    () => `tambo_last_thread_id_${user?.email ?? "guest"}`,
+    [user?.email],
+  );
 
-  const {
-    messages,
-    currentThreadId,
-    startNewThread,
-    switchThread,
-    isIdle,
-  } = useTambo() satisfies UseTamboReturn;
+  const { messages, currentThreadId, startNewThread, switchThread, isIdle } =
+    useTambo() satisfies UseTamboReturn;
 
   const { data: threadListData } = useTamboThreadList();
 
@@ -122,8 +152,10 @@ export function ChatPane({ onClose }: ChatPaneProps) {
   const [, setEvents] = useAtom(eventsAtom);
   const [, setHistory] = useAtom(actionHistoryAtom);
   const history = useAtomValue(actionHistoryAtom);
+  const [, emitEffect] = useAtom(emitCalendarActionEffectAtom);
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const checkpointCountRef = useRef(checkpoints.length);
 
   const handleChatReset = () => {
     setCheckpoints([]);
@@ -148,7 +180,9 @@ export function ChatPane({ onClose }: ChatPaneProps) {
   };
 
   const filteredMessages = useMemo(() => {
-    const orderedMessages = isIdle ? getStableOrderedMessages(messages) : messages;
+    const orderedMessages = isIdle
+      ? getStableOrderedMessages(messages)
+      : messages;
 
     return orderedMessages.filter((message, index) => {
       // Hide system messages
@@ -166,13 +200,11 @@ export function ChatPane({ onClose }: ChatPaneProps) {
       // Hide empty assistant messages while generating to prevent layout shifts
       const isGenerating = !isIdle;
       const isLast = index === orderedMessages.length - 1;
-      const isEmpty = (!message.content || (Array.isArray(message.content) && message.content.length === 0)) && !message.reasoning;
-      if (
-        message.role === "assistant" &&
-        isGenerating &&
-        isLast &&
-        isEmpty
-      ) {
+      const isEmpty =
+        (!message.content ||
+          (Array.isArray(message.content) && message.content.length === 0)) &&
+        !message.reasoning;
+      if (message.role === "assistant" && isGenerating && isLast && isEmpty) {
         return false;
       }
 
@@ -181,36 +213,75 @@ export function ChatPane({ onClose }: ChatPaneProps) {
   }, [messages, isIdle]);
 
   const handleRevert = (messageId: string) => {
-    const checkpoint = checkpoints.find(c => c.messageId === messageId);
+    const checkpoint = checkpoints.find((c) => c.messageId === messageId);
     if (!checkpoint) return;
 
     const actionsToUndo = history.slice(checkpoint.historyIndex);
+    const inverseActions: CalendarAction[] = [];
 
-    setEvents(prevEvents => {
+    setEvents((prevEvents) => {
       let newEvents = [...prevEvents];
 
-      actionsToUndo.reverse().forEach(action => {
+      // Walk backwards through actions to build inverse operations
+      [...actionsToUndo].reverse().forEach((action) => {
         switch (action.type) {
-          case 'ADD_EVENT':
-            newEvents = newEvents.filter(e => e.id !== action.payload.event.id);
-            break;
-          case 'DELETE_EVENT':
-            newEvents = [...newEvents, action.payload.event];
-            break;
-          case 'UPDATE_EVENT':
-          case 'MOVE_EVENT':
-            newEvents = newEvents.map(e =>
-              e.id === action.payload.after.id ? action.payload.before : e
+          case "ADD_EVENT": {
+            newEvents = newEvents.filter(
+              (e) => e.id !== action.payload.event.id,
             );
+            inverseActions.push({
+              id: crypto.randomUUID(),
+              type: "DELETE_EVENT",
+              timestamp: new Date().toISOString(),
+              source: "user",
+              explanation: "Revert: remove created event",
+              payload: { event: action.payload.event },
+            });
             break;
+          }
+          case "DELETE_EVENT": {
+            newEvents = [...newEvents, action.payload.event];
+            inverseActions.push({
+              id: crypto.randomUUID(),
+              type: "ADD_EVENT",
+              timestamp: new Date().toISOString(),
+              source: "user",
+              explanation: "Revert: restore deleted event",
+              payload: { event: action.payload.event },
+            });
+            break;
+          }
+          case "UPDATE_EVENT":
+          case "MOVE_EVENT": {
+            newEvents = newEvents.map((e) =>
+              e.id === action.payload.after.id ? action.payload.before : e,
+            );
+            inverseActions.push({
+              id: crypto.randomUUID(),
+              type: "UPDATE_EVENT",
+              timestamp: new Date().toISOString(),
+              source: "user",
+              explanation: "Revert: undo event change",
+              payload: {
+                before: action.payload.after,
+                after: action.payload.before,
+              },
+            });
+            break;
+          }
         }
       });
 
       return newEvents;
     });
 
-    setHistory(prev => prev.slice(0, checkpoint.historyIndex));
-    setCheckpoints(prev => prev.filter(c => c.messageId !== messageId));
+    // Sync inverse actions to Google Calendar
+    if (inverseActions.length > 0) {
+      emitEffect(inverseActions);
+    }
+
+    setHistory((prev) => prev.slice(0, checkpoint.historyIndex));
+    setCheckpoints((prev) => prev.filter((c) => c.messageId !== messageId));
   };
 
   const handleNewChat = () => {
@@ -236,36 +307,51 @@ export function ChatPane({ onClose }: ChatPaneProps) {
     }));
   }, [threadListData]);
 
-  // Auto-checkpointing logic
+  // Auto-checkpointing logic — runs when messages or history change,
+  // but uses a count ref to avoid recursive checkpoint writes.
   useEffect(() => {
     let hasChanged = false;
     const newCheckpoints = [...checkpoints];
 
     filteredMessages.forEach((msg, idx) => {
-      const hasToolUse = Array.isArray(msg.content) && msg.content.some(block => block.type === "tool_use");
+      const hasToolUse =
+        Array.isArray(msg.content) &&
+        msg.content.some((block) => block.type === "tool_use");
       if (msg.role === "assistant" && hasToolUse) {
-        if (!newCheckpoints.some(c => c.messageId === msg.id)) {
-          const aiActions = history.filter(a => a.source === 'ai' && !newCheckpoints.some(c => c.eventIds.some(id => {
-            if (a.type === 'ADD_EVENT') return id === a.payload.event.id;
-            if (a.type === 'UPDATE_EVENT') return id === a.payload.after.id;
-            if (a.type === 'DELETE_EVENT') return id === a.payload.event.id;
-            return false;
-          })));
+        if (!newCheckpoints.some((c) => c.messageId === msg.id)) {
+          const aiActions = history.filter(
+            (a) =>
+              a.source === "ai" &&
+              !newCheckpoints.some((c) =>
+                c.eventIds.some((id) => {
+                  if (a.type === "ADD_EVENT") return id === a.payload.event.id;
+                  if (a.type === "UPDATE_EVENT")
+                    return id === a.payload.after.id;
+                  if (a.type === "DELETE_EVENT")
+                    return id === a.payload.event.id;
+                  return false;
+                }),
+              ),
+          );
 
-          const eventIds = aiActions.flatMap(a => {
-            if (a.type === 'ADD_EVENT') return [a.payload.event.id];
-            if (a.type === 'UPDATE_EVENT') return [a.payload.after.id];
-            if (a.type === 'DELETE_EVENT') return [a.payload.event.id];
+          const eventIds = aiActions.flatMap((a) => {
+            if (a.type === "ADD_EVENT") return [a.payload.event.id];
+            if (a.type === "UPDATE_EVENT") return [a.payload.after.id];
+            if (a.type === "DELETE_EVENT") return [a.payload.event.id];
             return [];
           });
 
           if (eventIds.length > 0) {
-            const userMsgId = filteredMessages.slice(0, idx).reverse().find(m => m.role === 'user')?.id || msg.id;
+            const userMsgId =
+              filteredMessages
+                .slice(0, idx)
+                .reverse()
+                .find((m) => m.role === "user")?.id || msg.id;
 
             newCheckpoints.push({
               messageId: userMsgId,
               historyIndex: history.indexOf(aiActions[0]),
-              eventIds: Array.from(new Set(eventIds))
+              eventIds: Array.from(new Set(eventIds)),
             });
             hasChanged = true;
           }
@@ -273,7 +359,8 @@ export function ChatPane({ onClose }: ChatPaneProps) {
       }
     });
 
-    if (hasChanged) {
+    if (hasChanged && newCheckpoints.length !== checkpointCountRef.current) {
+      checkpointCountRef.current = newCheckpoints.length;
       setCheckpoints(newCheckpoints);
     }
   }, [filteredMessages, history, checkpoints, setCheckpoints]);
@@ -311,7 +398,7 @@ export function ChatPane({ onClose }: ChatPaneProps) {
     <div className="flex h-full flex-col bg-background min-w-0 overflow-hidden">
       <ErrorBoundary onReset={handleChatReset}>
         <ChatHeader
-          threadHistoryMenu={(
+          threadHistoryMenu={
             <ThreadHistoryPanel
               threadsHistory={threadHistoryItems}
               activeThreadId={currentThreadId || threadId}
@@ -319,7 +406,7 @@ export function ChatPane({ onClose }: ChatPaneProps) {
               onNewThread={handleNewChat}
               trigger={historyMenuTrigger}
             />
-          )}
+          }
           onClose={onClose}
         />
 
@@ -332,12 +419,19 @@ export function ChatPane({ onClose }: ChatPaneProps) {
               {filteredMessages.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-16 text-center gap-3 text-muted-foreground">
                   <div className="size-14 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
-                    <img src="/brilliant.svg" className="size-8" alt="Brilliant" />
+                    <img
+                      src="/brilliant.svg"
+                      className="size-8"
+                      alt="Brilliant"
+                    />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-foreground text-base">Welcome to Brilliant</h3>
-                    <p className="text-sm mt-1 max-w-[260px] text-muted-foreground/80">
-                      Tell me what you want to get done and I'll manage your schedule.
+                    <h3 className="font-semibold text-foreground text-base">
+                      Welcome to Brilliant
+                    </h3>
+                    <p className="text-sm mt-1 max-w-65 text-muted-foreground/80">
+                      Tell me what you want to get done and I'll manage your
+                      schedule.
                     </p>
                   </div>
                 </div>
@@ -345,17 +439,28 @@ export function ChatPane({ onClose }: ChatPaneProps) {
 
               {filteredMessages.map((message, index) => {
                 const isLastMessage = index === filteredMessages.length - 1;
-                const hasRevert = checkpoints.some((c) => c.messageId === message.id);
+                const hasRevert = checkpoints.some(
+                  (c) => c.messageId === message.id,
+                );
                 const role = message.role?.toLowerCase();
                 const isAssistant = role === "assistant";
                 const isUser = role === "user";
 
-                const assistantContent = message.content as unknown as Content[] | string;
-                const assistantContentBlocks: Content[] = Array.isArray(assistantContent)
+                const assistantContent = message.content as unknown as
+                  | Content[]
+                  | string;
+                const assistantContentBlocks: Content[] = Array.isArray(
+                  assistantContent,
+                )
                   ? assistantContent
-                  : ([{ type: "text", text: assistantContent } satisfies TextContent] as Content[]);
+                  : ([
+                      {
+                        type: "text",
+                        text: assistantContent,
+                      } satisfies TextContent,
+                    ] as Content[]);
                 const assistantHasTextOrResource = assistantContentBlocks.some(
-                  (b) => b.type === "text" || b.type === "resource"
+                  (b) => b.type === "text" || b.type === "resource",
                 );
 
                 const toolBlocks = Array.isArray(message.content)
@@ -364,7 +469,10 @@ export function ChatPane({ onClose }: ChatPaneProps) {
 
                 return (
                   <div
-                    key={message.id ?? `${message.role}-${index}-${message.createdAt}`}
+                    key={
+                      message.id ??
+                      `${message.role}-${index}-${message.createdAt}`
+                    }
                     className="flex flex-col w-full"
                   >
                     <Message
@@ -372,18 +480,22 @@ export function ChatPane({ onClose }: ChatPaneProps) {
                       message={message}
                       className={cn(
                         "flex w-full animate-in fade-in slide-in-from-bottom-2 duration-300",
-                        isAssistant ? "justify-start" : "justify-end"
+                        isAssistant ? "justify-start" : "justify-end",
                       )}
                     >
-                      <div className={cn(
-                        "flex flex-col gap-1 mb-2",
-                        isAssistant ? "items-start w-full" : "items-end w-full"
-                      )}>
+                      <div
+                        className={cn(
+                          "flex flex-col gap-1 mb-2",
+                          isAssistant
+                            ? "items-start w-full"
+                            : "items-end w-full",
+                        )}
+                      >
                         <ReasoningInfo />
                         <MessageImages />
 
                         {isUser ? (
-                          <div className="bg-primary text-primary-foreground shadow-md rounded-[20px] rounded-tr-[4px] px-4 py-2.5 text-[14px] leading-relaxed max-w-[85%]">
+                          <div className="bg-primary text-primary-foreground shadow-md rounded-4xl rounded-tr-lg px-4 py-2.5 text-[14px] leading-relaxed max-w-[85%]">
                             <MessageContent
                               content={message.content}
                               className="bg-transparent text-primary-foreground p-0"
@@ -392,7 +504,7 @@ export function ChatPane({ onClose }: ChatPaneProps) {
                         ) : (
                           <div className="flex flex-col gap-2 w-full max-w-[95%]">
                             {assistantHasTextOrResource ? (
-                              <div className="bg-gray-100 dark:bg-[#2a2a2e] border border-border/50 text-foreground shadow-sm rounded-[20px] rounded-tl-[4px] px-4 py-3 text-[14px] leading-relaxed">
+                              <div className="bg-gray-100 dark:bg-[#2a2a2e] border border-border/50 text-foreground shadow-sm rounded-4xl rounded-tl-lg px-4 py-3 text-[14px] leading-relaxed">
                                 <MessageContent
                                   content={assistantContentBlocks}
                                   className="bg-transparent text-foreground p-0"
@@ -424,7 +536,10 @@ export function ChatPane({ onClose }: ChatPaneProps) {
                               className="h-7 text-[10px] px-3 font-medium transition-all gap-1.5 border border-primary/20 rounded-full text-primary/80 hover:text-primary hover:bg-primary/5 hover:border-primary/40 active:scale-95"
                               onClick={() => handleRevert(message.id)}
                             >
-                              <IconRotateClockwise size={12} className="opacity-80" />
+                              <IconRotateClockwise
+                                size={12}
+                                className="opacity-80"
+                              />
                               Revert schedule to here
                             </Button>
                           </div>
@@ -437,26 +552,40 @@ export function ChatPane({ onClose }: ChatPaneProps) {
             </div>
           </ScrollableMessageContainer>
 
-
           <div className="p-3 pt-1">
             <TamboThreadInputProvider>
               <MessageInput variant="solid" className="w-full">
                 <MessageSuggestions
                   className="px-0 pb-2"
-                  initialSuggestions={(
+                  initialSuggestions={
                     [
-                      { id: "1", title: "Show my schedule for today", messageId: "init", detailedSuggestion: "Show my schedule for today" },
-                      { id: "2", title: "What's on my calendar this week?", messageId: "init", detailedSuggestion: "What's on my calendar this week?" },
-                      { id: "3", title: "Organize my afternoon", messageId: "init", detailedSuggestion: "Organize my afternoon" },
+                      {
+                        id: "1",
+                        title: "Show my schedule for today",
+                        messageId: "init",
+                        detailedSuggestion: "Show my schedule for today",
+                      },
+                      {
+                        id: "2",
+                        title: "What's on my calendar this week?",
+                        messageId: "init",
+                        detailedSuggestion: "What's on my calendar this week?",
+                      },
+                      {
+                        id: "3",
+                        title: "Organize my afternoon",
+                        messageId: "init",
+                        detailedSuggestion: "Organize my afternoon",
+                      },
                     ] satisfies Suggestion[]
-                  )}
+                  }
                 >
                   <MessageSuggestionsStatus />
                   <MessageSuggestionsList />
                 </MessageSuggestions>
                 <MessageInputTextarea
                   placeholder="What do you need on your calendar?"
-                  className="text-sm min-h-[44px]"
+                  className="text-sm min-h-11"
                 />
                 <MessageInputToolbar>
                   <MessageInputFileButton />

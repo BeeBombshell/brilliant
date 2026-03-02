@@ -6,12 +6,14 @@ import { TamboProvider } from "@tambo-ai/react";
 import { eventsAtom, selectedDateAtom, viewAtom } from "@/state/calendarAtoms";
 import { tamboTools } from "./lib/tambo/tools";
 import { tamboComponents } from "./lib/tambo";
-import { GoogleAuthProvider, useGoogleAuth } from "@/contexts/GoogleAuthContext";
+import {
+  GoogleAuthProvider,
+  useGoogleAuth,
+} from "@/contexts/GoogleAuthContext";
 import { GoogleCalendarSync } from "@/components/calendar/GoogleCalendarSync";
 import { GoogleLoginScreen } from "@/components/auth/GoogleLoginScreen";
 import { SessionExpiredDialog } from "@/components/auth/SessionExpiredDialog";
 import Home from "./pages/Home";
-
 
 function AppContent() {
   const { isAuthenticated, isLoading } = useGoogleAuth();
@@ -25,7 +27,11 @@ function AppContent() {
   }, [isAuthenticated, setEvents]);
 
   if (isLoading) {
-    return <div className="flex h-screen items-center justify-center">Loading...</div>;
+    return (
+      <div className="flex h-screen items-center justify-center">
+        Loading...
+      </div>
+    );
   }
 
   if (!isAuthenticated) {
@@ -47,6 +53,7 @@ export default App;
 
 function AppWithTambo() {
   const { user } = useGoogleAuth();
+  const events = useAtomValue(eventsAtom);
   const selectedDate = useAtomValue(selectedDateAtom);
   const view = useAtomValue(viewAtom);
 
@@ -65,7 +72,7 @@ function AppWithTambo() {
           timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         }),
         calendarViewContext: () => {
-          const weekOpts = { weekStartsOn: 0 as const }; // 0 = Sunday; keep in sync with UI/week display
+          const weekOpts = { weekStartsOn: 0 as const };
 
           let rangeDescription: string;
           switch (view) {
@@ -82,9 +89,6 @@ function AppWithTambo() {
               rangeDescription = `looking at ${format(selectedDate, "MMMM yyyy")}`;
               break;
             default:
-              if (import.meta.env.DEV) {
-                console.warn("Unexpected calendar view type", view);
-              }
               rangeDescription = `looking at ${format(selectedDate, "PPPP")}`;
           }
 
@@ -92,6 +96,44 @@ function AppWithTambo() {
             selectedDate: selectedDate.toISOString(),
             viewType: view,
             description: `The user is currently ${rangeDescription} in their calendar. Use this as the default time range if the user refers to "this week", "today", "this month", or "what I'm looking at".`,
+          };
+        },
+        upcomingEventsContext: () => {
+          const now = new Date();
+          const todayStart = new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate(),
+          );
+          const todayEnd = new Date(todayStart.getTime() + 86400000);
+
+          const todayEvents = events
+            .filter((e) => {
+              const start = new Date(e.startDate);
+              const end = new Date(e.endDate);
+              return start < todayEnd && end > todayStart;
+            })
+            .sort(
+              (a, b) =>
+                new Date(a.startDate).getTime() -
+                new Date(b.startDate).getTime(),
+            )
+            .slice(0, 10)
+            .map((e) => ({
+              id: e.id,
+              title: e.title,
+              startDate: e.startDate,
+              endDate: e.endDate,
+              color: e.color,
+            }));
+
+          return {
+            todayEventCount: todayEvents.length,
+            todayEvents,
+            description:
+              todayEvents.length > 0
+                ? `The user has ${todayEvents.length} events today: ${todayEvents.map((e) => e.title).join(", ")}`
+                : "The user has no events today.",
           };
         },
       }}

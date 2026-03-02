@@ -1,341 +1,371 @@
-import { z } from 'zod';
-import { getDefaultStore } from 'jotai';
-import { v4 as uuid } from 'uuid';
-import { eventsAtom } from '@/state/calendarAtoms';
-import { executeCalendarActionAtom } from '@/state/calendarEffects';
-import type { CalendarEvent, CalendarAction, EventColor, RecurrenceRule } from '@/types/calendar';
-import type { TamboTool } from '@tambo-ai/react';
-import { expandAllRecurringEvents } from '@/lib/dateUtils';
+import { getDefaultStore } from "jotai";
+import { v4 as uuid } from "uuid";
+import { defineTool } from "@tambo-ai/react";
+import { eventsAtom } from "@/state/calendarAtoms";
+import { executeCalendarActionAtom } from "@/state/calendarEffects";
+import type {
+  CalendarEvent,
+  CalendarAction,
+  EventColor,
+  RecurrenceRule,
+} from "@/types/calendar";
+import { expandAllRecurringEvents } from "@/lib/dateUtils";
 
 import {
-    CreateEventSchema,
-    CreateEventOutputSchema,
-    GetEventsSchema,
-    GetEventsOutputSchema,
-    UpdateEventSchema,
-    UpdateEventOutputSchema,
-    DeleteEventSchema,
-    DeleteEventOutputSchema,
-    ReorganizeEventsSchema,
-    ReorganizeOutputSchema,
-    CreateRecurringEventSchema,
-    CreateRecurringEventOutputSchema,
-} from './schemas';
+  CreateEventSchema,
+  CreateEventOutputSchema,
+  GetEventsSchema,
+  GetEventsOutputSchema,
+  UpdateEventSchema,
+  UpdateEventOutputSchema,
+  DeleteEventSchema,
+  DeleteEventOutputSchema,
+  ReorganizeEventsSchema,
+  ReorganizeOutputSchema,
+} from "./schemas";
 
-export const tamboTools: TamboTool<any, any, []>[] = [
-    {
-        name: 'createCalendarEvent',
-        title: 'Create Calendar Event',
-        description: 'Create a new event in the user\'s calendar, optionally with recurrence',
-        inputSchema: CreateEventSchema,
-        outputSchema: CreateEventOutputSchema,
-        tool: async ({ summary, startDateTime, endDateTime, description, location, attendees, color, meetingLinkRequested, recurrence }: z.infer<typeof CreateEventSchema>) => {
-            const store = getDefaultStore();
-            const event: CalendarEvent = {
-                id: uuid(),
-                title: summary,
-                startDate: startDateTime,
-                endDate: endDateTime,
-                description,
-                location,
-                attendees: attendees?.map(email => ({ email })),
-                color: (color as EventColor) ?? 'blue',
-                meetingLinkRequested,
-                meta: { source: 'ai' },
-                recurrence: recurrence as RecurrenceRule | undefined,
-            };
+// --- Shared helpers ---
 
-            const action: CalendarAction = {
-                id: uuid(),
-                type: 'ADD_EVENT',
-                timestamp: new Date().toISOString(),
-                source: 'ai',
-                payload: { event },
-            };
+/**
+ * Build a CalendarEvent from AI-provided fields.
+ * Single source of truth for event creation (used by tools and reorganize).
+ */
+function buildCalendarEvent(fields: {
+  summary: string;
+  startDateTime: string;
+  endDateTime: string;
+  description?: string;
+  location?: string;
+  attendees?: string[];
+  color?: string;
+  meetingLinkRequested?: boolean;
+  recurrence?: RecurrenceRule;
+}): CalendarEvent {
+  return {
+    id: uuid(),
+    title: fields.summary,
+    startDate: fields.startDateTime,
+    endDate: fields.endDateTime,
+    description: fields.description,
+    location: fields.location,
+    attendees: fields.attendees?.map((email) => ({ email })),
+    color: (fields.color as EventColor) ?? "blue",
+    meetingLinkRequested: fields.meetingLinkRequested,
+    meta: { source: "ai" },
+    recurrence: fields.recurrence,
+  };
+}
 
-            store.set(eventsAtom, (prev) => [...prev, event]);
-            store.set(executeCalendarActionAtom, action);
+/**
+ * Apply a CalendarAction atomically — updates events AND pushes to action
+ * history + sync queue in a single call. This fixes the dual-mutation race
+ * condition where events and history could get out of sync.
+ */
+function applyAction(
+  store: ReturnType<typeof getDefaultStore>,
+  action: CalendarAction,
+  eventsMutator: (prev: CalendarEvent[]) => CalendarEvent[],
+) {
+  store.set(eventsAtom, eventsMutator);
+  store.set(executeCalendarActionAtom, action);
+}
 
-            const recurrenceInfo = recurrence ? ` (recurring ${recurrence.frequency.toLowerCase()}${recurrence.count ? ` for ${recurrence.count} times` : ''})` : '';
-            return {
-                success: true,
-                message: `Created event "${summary}"${recurrenceInfo}`,
-                eventId: event.id,
-            };
-        }
-    },
-    {
-        name: 'getCalendarEvents',
-        title: 'Get Calendar Events',
-        description: 'Retrieve events from the user\'s calendar for a specific time range',
-        inputSchema: GetEventsSchema,
-        outputSchema: GetEventsOutputSchema,
-        tool: async ({ startDate, endDate }: z.infer<typeof GetEventsSchema>) => {
-            const store = getDefaultStore();
-            const allEvents = store.get(eventsAtom);
+function applyActions(
+  store: ReturnType<typeof getDefaultStore>,
+  actions: CalendarAction[],
+  nextEvents: CalendarEvent[],
+) {
+  store.set(eventsAtom, nextEvents);
+  store.set(executeCalendarActionAtom, actions);
+}
 
-            // Defensive: if AI sends date-only string (no "T"), expand to full day
-            const ensureDateTime = (dateStr: string, fallbackTime: string) => {
-                if (!dateStr.includes('T')) {
-                    return new Date(`${dateStr}T${fallbackTime}`);
-                }
-                return new Date(dateStr);
-            };
+/** Resolve an event ID that may be an instance ID (e.g. `eventId_2024-03-01`) to its master. */
+function resolveMasterId(id: string): string {
+  return id.includes("_") ? id.split("_")[0] : id;
+}
 
-            const start = ensureDateTime(startDate, '00:00:00');
-            const end = ensureDateTime(endDate, '23:59:59');
+/** Defensive: ensure ISO string includes time portion. */
+function ensureDateTime(dateStr: string, fallbackTime: string): Date {
+  if (!dateStr.includes("T")) {
+    return new Date(`${dateStr}T${fallbackTime}`);
+  }
+  return new Date(dateStr);
+}
 
-            console.log('Searching for events between', start.toISOString(), 'and', end.toISOString());
-            console.log('Total events in store:', allEvents.length);
+// --- Tool definitions ---
 
-            // Expand recurring events into concrete instances for this range
-            const expandedEvents = expandAllRecurringEvents(allEvents, start, end);
-            console.log('Total events after expansion:', expandedEvents.length);
+const createCalendarEvent = defineTool({
+  name: "createCalendarEvent",
+  description:
+    "Create a new event in the user's calendar, optionally with recurrence. Also use this for recurring events.",
+  inputSchema: CreateEventSchema,
+  outputSchema: CreateEventOutputSchema,
+  tool: async ({
+    summary,
+    startDateTime,
+    endDateTime,
+    description,
+    location,
+    attendees,
+    color,
+    meetingLinkRequested,
+    recurrence,
+  }) => {
+    const store = getDefaultStore();
+    const event = buildCalendarEvent({
+      summary,
+      startDateTime,
+      endDateTime,
+      description,
+      location,
+      attendees,
+      color,
+      meetingLinkRequested,
+      recurrence: recurrence as RecurrenceRule | undefined,
+    });
 
-            const filtered = expandedEvents.filter(e => {
-                const eStart = new Date(e.startDate);
-                const eEnd = new Date(e.endDate);
+    const action: CalendarAction = {
+      id: uuid(),
+      type: "ADD_EVENT",
+      timestamp: new Date().toISOString(),
+      source: "ai",
+      payload: { event },
+    };
 
-                // Overlap condition: (StartA < EndB) && (EndA > StartB)
-                return (eStart < end) && (eEnd > start);
-            });
+    applyAction(store, action, (prev) => [...prev, event]);
 
+    const recurrenceInfo = recurrence
+      ? ` (recurring ${recurrence.frequency.toLowerCase()}${recurrence.count ? ` for ${recurrence.count} times` : ""})`
+      : "";
 
-            const eventList = filtered
-                .map(e => `${e.title} [${new Date(e.startDate).getHours()}:${String(new Date(e.startDate).getMinutes()).padStart(2, '0')}]`)
-                .join(', ');
+    return {
+      success: true,
+      message: `Created event "${summary}"${recurrenceInfo}`,
+      eventId: event.id,
+    };
+  },
+});
 
-            return {
-                success: true,
-                events: filtered,
-                message: filtered.length > 0
-                    ? `Found ${filtered.length} events: ${eventList}`
-                    : `No events found between ${start.toLocaleString()} and ${end.toLocaleString()}.`,
-            };
-        }
-    },
-    {
-        name: 'updateCalendarEvent',
-        title: 'Update Calendar Event',
-        description: 'Update an existing calendar event or modify its recurrence pattern',
-        inputSchema: UpdateEventSchema,
-        outputSchema: UpdateEventOutputSchema,
-        tool: async (patch: z.infer<typeof UpdateEventSchema>) => {
-            const store = getDefaultStore();
-            const allEvents = store.get(eventsAtom);
-            // Handle instance IDs (e.g., eventId_2024-03-01)
-            const masterId = patch.id.includes('_') ? patch.id.split('_')[0] : patch.id;
-            const existing = allEvents.find(e => e.id === masterId);
+const getCalendarEvents = defineTool({
+  name: "getCalendarEvents",
+  description:
+    "Retrieve events from the user's calendar for a specific time range",
+  inputSchema: GetEventsSchema,
+  outputSchema: GetEventsOutputSchema,
+  tool: async ({ startDate, endDate }) => {
+    const store = getDefaultStore();
+    const allEvents = store.get(eventsAtom);
 
-            if (!existing) {
-                return { success: false, message: `Event with ID ${patch.id} not found` };
-            }
+    const start = ensureDateTime(startDate, "00:00:00");
+    const end = ensureDateTime(endDate, "23:59:59");
 
-            const updated: CalendarEvent = {
-                ...existing,
-                title: patch.title ?? existing.title,
-                startDate: patch.startDate ?? existing.startDate,
-                endDate: patch.endDate ?? existing.endDate,
-                description: patch.description ?? existing.description,
-                location: patch.location ?? existing.location,
-                attendees: patch.attendees ? patch.attendees.map(email => ({ email })) : existing.attendees,
-                color: (patch.color as EventColor) ?? existing.color,
-                meetingLinkRequested: patch.meetingLinkRequested ?? existing.meetingLinkRequested,
-                recurrence: patch.recurrence ? (patch.recurrence as RecurrenceRule) : existing.recurrence,
-                meta: { source: 'ai' }
-            };
+    const expandedEvents = expandAllRecurringEvents(allEvents, start, end);
 
-            const action: CalendarAction = {
-                id: uuid(),
-                type: 'UPDATE_EVENT',
-                timestamp: new Date().toISOString(),
-                source: 'ai',
-                payload: { before: existing, after: updated },
-            };
+    const filtered = expandedEvents.filter((e) => {
+      const eStart = new Date(e.startDate);
+      const eEnd = new Date(e.endDate);
+      return eStart < end && eEnd > start;
+    });
 
-            store.set(eventsAtom, (prev) => prev.map(e => e.id === masterId ? updated : e));
-            store.set(executeCalendarActionAtom, action);
+    const eventList = filtered
+      .map(
+        (e) =>
+          `${e.title} [${new Date(e.startDate).getHours()}:${String(new Date(e.startDate).getMinutes()).padStart(2, "0")}]`,
+      )
+      .join(", ");
 
-            return {
-                success: true,
-                message: `Updated event "${updated.title}"`,
-            };
-        }
-    },
-    {
-        name: 'deleteCalendarEvent',
-        title: 'Delete Calendar Event',
-        description: 'Remove an event from the calendar',
-        inputSchema: DeleteEventSchema,
-        outputSchema: DeleteEventOutputSchema,
-        tool: async ({ id }: z.infer<typeof DeleteEventSchema>) => {
-            const store = getDefaultStore();
-            const allEvents = store.get(eventsAtom);
-            // Handle instance IDs (e.g., eventId_2024-03-01)
-            const masterId = id.includes('_') ? id.split('_')[0] : id;
-            const existing = allEvents.find(e => e.id === masterId);
+    return {
+      success: true,
+      events: filtered,
+      message:
+        filtered.length > 0
+          ? `Found ${filtered.length} events: ${eventList}`
+          : `No events found between ${start.toLocaleString()} and ${end.toLocaleString()}.`,
+    };
+  },
+});
 
-            if (!existing) {
-                return { success: false, message: `Event with ID ${id} not found` };
-            }
+const updateCalendarEvent = defineTool({
+  name: "updateCalendarEvent",
+  description:
+    "Update an existing calendar event or modify its recurrence pattern",
+  inputSchema: UpdateEventSchema,
+  outputSchema: UpdateEventOutputSchema,
+  tool: async (patch) => {
+    const store = getDefaultStore();
+    const allEvents = store.get(eventsAtom);
+    const masterId = resolveMasterId(patch.id);
+    const existing = allEvents.find((e) => e.id === masterId);
 
-            const action: CalendarAction = {
-                id: uuid(),
-                type: 'DELETE_EVENT',
-                timestamp: new Date().toISOString(),
-                source: 'ai',
-                payload: { event: existing },
-            };
-
-            store.set(eventsAtom, (prev) => prev.filter(e => e.id !== masterId));
-            store.set(executeCalendarActionAtom, action);
-
-            return {
-                success: true,
-                message: `Deleted event "${existing.title}"`,
-            };
-        }
-    },
-    {
-        name: 'reorganizeEvents',
-        title: 'Reorganize Events',
-        description: 'Perform multiple calendar actions (create, update, delete) at once to reorganize the schedule',
-        inputSchema: ReorganizeEventsSchema,
-        outputSchema: ReorganizeOutputSchema,
-        tool: async ({ actions, explanation }: z.infer<typeof ReorganizeEventsSchema>) => {
-            const store = getDefaultStore();
-            const timestamp = new Date().toISOString();
-            const calendarActions: CalendarAction[] = [];
-
-            // Process all actions against a local copy of events to ensure consistency
-            let nextEvents = [...store.get(eventsAtom)];
-
-            for (const actionData of actions) {
-                if (actionData.type === 'create') {
-                    const event: CalendarEvent = {
-                        id: uuid(),
-                        title: actionData.event.summary,
-                        startDate: actionData.event.startDateTime,
-                        endDate: actionData.event.endDateTime,
-                        description: actionData.event.description,
-                        location: actionData.event.location,
-                        attendees: actionData.event.attendees?.map(email => ({ email })),
-                        color: (actionData.event.color as EventColor) ?? 'purple',
-                        meetingLinkRequested: actionData.event.meetingLinkRequested,
-                        meta: { source: 'ai' }
-                    };
-                    calendarActions.push({
-                        id: uuid(),
-                        type: 'ADD_EVENT',
-                        timestamp,
-                        source: 'ai',
-                        explanation,
-                        payload: { event },
-                    });
-                    nextEvents.push(event);
-                }
-                else if (actionData.type === 'update') {
-                    const masterId = actionData.patch.id.includes('_') ? actionData.patch.id.split('_')[0] : actionData.patch.id;
-                    const existing = nextEvents.find(e => e.id === masterId);
-                    if (existing) {
-                        const updated: CalendarEvent = {
-                            ...existing,
-                            title: actionData.patch.title ?? existing.title,
-                            startDate: actionData.patch.startDate ?? existing.startDate,
-                            endDate: actionData.patch.endDate ?? existing.endDate,
-                            description: actionData.patch.description ?? existing.description,
-                            location: actionData.patch.location ?? existing.location,
-                            attendees: actionData.patch.attendees ? actionData.patch.attendees.map(email => ({ email })) : existing.attendees,
-                            color: (actionData.patch.color as EventColor) ?? existing.color,
-                            meetingLinkRequested: actionData.patch.meetingLinkRequested ?? existing.meetingLinkRequested,
-                            meta: { source: 'ai' }
-                        };
-                        calendarActions.push({
-                            id: uuid(),
-                            type: 'UPDATE_EVENT',
-                            timestamp,
-                            source: 'ai',
-                            explanation,
-                            payload: { before: existing, after: updated },
-                        });
-                        nextEvents = nextEvents.map(e => e.id === masterId ? updated : e);
-                    }
-                }
-                else if (actionData.type === 'delete') {
-                    const masterId = actionData.id.includes('_') ? actionData.id.split('_')[0] : actionData.id;
-                    const existing = nextEvents.find(e => e.id === masterId);
-                    if (existing) {
-                        calendarActions.push({
-                            id: uuid(),
-                            type: 'DELETE_EVENT',
-                            timestamp,
-                            source: 'ai',
-                            explanation,
-                            payload: { event: existing },
-                        });
-                        nextEvents = nextEvents.filter(e => e.id !== masterId);
-                    }
-                }
-            }
-
-            // Apply all state changes and trigger side effects in one go
-            store.set(eventsAtom, nextEvents);
-            store.set(executeCalendarActionAtom, calendarActions);
-
-            return {
-                success: true,
-                message: `Reorganized schedule with ${calendarActions.length} changes.`,
-                actionCount: calendarActions.length,
-            };
-        }
-    },
-    {
-        name: 'createRecurringEvent',
-        title: 'Create Recurring Event',
-        description: 'Create a recurring event with a daily, weekly, monthly, or yearly pattern. Use this when the user wants an event that repeats.',
-        inputSchema: CreateRecurringEventSchema,
-        outputSchema: CreateRecurringEventOutputSchema,
-        tool: async ({ summary, startDateTime, endDateTime, recurrence, description, location, attendees, color, meetingLinkRequested }: z.infer<typeof CreateRecurringEventSchema>) => {
-            const store = getDefaultStore();
-            const event: CalendarEvent = {
-                id: uuid(),
-                title: summary,
-                startDate: startDateTime,
-                endDate: endDateTime,
-                description,
-                location,
-                attendees: attendees?.map(email => ({ email })),
-                color: (color as EventColor) ?? 'purple',
-                meetingLinkRequested,
-                meta: { source: 'ai' },
-                recurrence: recurrence as RecurrenceRule,
-            };
-
-            const action: CalendarAction = {
-                id: uuid(),
-                type: 'ADD_EVENT',
-                timestamp: new Date().toISOString(),
-                source: 'ai',
-                explanation: `Created recurring event: ${summary}`,
-                payload: { event },
-            };
-
-            store.set(eventsAtom, (prev) => [...prev, event]);
-            store.set(executeCalendarActionAtom, action);
-
-            const recurrenceDescription = [
-                recurrence.frequency.toLowerCase(),
-                recurrence.byDay ? `on ${recurrence.byDay.join(', ')}` : '',
-                recurrence.count ? `for ${recurrence.count} occurrences` : '',
-                recurrence.endDate ? `until ${new Date(recurrence.endDate).toLocaleDateString()}` : '',
-                recurrence.interval && recurrence.interval > 1 ? `every ${recurrence.interval} periods` : '',
-            ].filter(Boolean).join(' ');
-
-            return {
-                success: true,
-                message: `Created recurring event "${summary}" (${recurrenceDescription})`,
-                eventId: event.id,
-            };
-        }
+    if (!existing) {
+      return { success: false, message: `Event with ID ${patch.id} not found` };
     }
+
+    const updated: CalendarEvent = {
+      ...existing,
+      title: patch.title ?? existing.title,
+      startDate: patch.startDate ?? existing.startDate,
+      endDate: patch.endDate ?? existing.endDate,
+      description: patch.description ?? existing.description,
+      location: patch.location ?? existing.location,
+      attendees: patch.attendees
+        ? patch.attendees.map((email) => ({ email }))
+        : existing.attendees,
+      color: (patch.color as EventColor) ?? existing.color,
+      meetingLinkRequested:
+        patch.meetingLinkRequested ?? existing.meetingLinkRequested,
+      recurrence: patch.recurrence
+        ? (patch.recurrence as RecurrenceRule)
+        : existing.recurrence,
+      meta: { source: "ai" },
+    };
+
+    const action: CalendarAction = {
+      id: uuid(),
+      type: "UPDATE_EVENT",
+      timestamp: new Date().toISOString(),
+      source: "ai",
+      payload: { before: existing, after: updated },
+    };
+
+    applyAction(store, action, (prev) =>
+      prev.map((e) => (e.id === masterId ? updated : e)),
+    );
+
+    return {
+      success: true,
+      message: `Updated event "${updated.title}"`,
+    };
+  },
+});
+
+const deleteCalendarEvent = defineTool({
+  name: "deleteCalendarEvent",
+  description: "Remove an event from the calendar",
+  inputSchema: DeleteEventSchema,
+  outputSchema: DeleteEventOutputSchema,
+  tool: async ({ id }) => {
+    const store = getDefaultStore();
+    const allEvents = store.get(eventsAtom);
+    const masterId = resolveMasterId(id);
+    const existing = allEvents.find((e) => e.id === masterId);
+
+    if (!existing) {
+      return { success: false, message: `Event with ID ${id} not found` };
+    }
+
+    const action: CalendarAction = {
+      id: uuid(),
+      type: "DELETE_EVENT",
+      timestamp: new Date().toISOString(),
+      source: "ai",
+      payload: { event: existing },
+    };
+
+    applyAction(store, action, (prev) => prev.filter((e) => e.id !== masterId));
+
+    return {
+      success: true,
+      message: `Deleted event "${existing.title}"`,
+    };
+  },
+});
+
+const reorganizeEvents = defineTool({
+  name: "reorganizeEvents",
+  description:
+    "Perform multiple calendar actions (create, update, delete) at once to reorganize the schedule",
+  inputSchema: ReorganizeEventsSchema,
+  outputSchema: ReorganizeOutputSchema,
+  tool: async ({ actions, explanation }) => {
+    const store = getDefaultStore();
+    const timestamp = new Date().toISOString();
+    const calendarActions: CalendarAction[] = [];
+    let nextEvents = [...store.get(eventsAtom)];
+
+    for (const actionData of actions) {
+      if (actionData.type === "create") {
+        const event = buildCalendarEvent({
+          summary: actionData.event.summary,
+          startDateTime: actionData.event.startDateTime,
+          endDateTime: actionData.event.endDateTime,
+          description: actionData.event.description,
+          location: actionData.event.location,
+          attendees: actionData.event.attendees,
+          color: actionData.event.color,
+          meetingLinkRequested: actionData.event.meetingLinkRequested,
+          recurrence: actionData.event.recurrence as RecurrenceRule | undefined,
+        });
+        calendarActions.push({
+          id: uuid(),
+          type: "ADD_EVENT",
+          timestamp,
+          source: "ai",
+          explanation,
+          payload: { event },
+        });
+        nextEvents.push(event);
+      } else if (actionData.type === "update") {
+        const masterId = resolveMasterId(actionData.patch.id);
+        const existing = nextEvents.find((e) => e.id === masterId);
+        if (existing) {
+          const updated: CalendarEvent = {
+            ...existing,
+            title: actionData.patch.title ?? existing.title,
+            startDate: actionData.patch.startDate ?? existing.startDate,
+            endDate: actionData.patch.endDate ?? existing.endDate,
+            description: actionData.patch.description ?? existing.description,
+            location: actionData.patch.location ?? existing.location,
+            attendees: actionData.patch.attendees
+              ? actionData.patch.attendees.map((email) => ({ email }))
+              : existing.attendees,
+            color: (actionData.patch.color as EventColor) ?? existing.color,
+            meetingLinkRequested:
+              actionData.patch.meetingLinkRequested ??
+              existing.meetingLinkRequested,
+            meta: { source: "ai" },
+          };
+          calendarActions.push({
+            id: uuid(),
+            type: "UPDATE_EVENT",
+            timestamp,
+            source: "ai",
+            explanation,
+            payload: { before: existing, after: updated },
+          });
+          nextEvents = nextEvents.map((e) => (e.id === masterId ? updated : e));
+        }
+      } else if (actionData.type === "delete") {
+        const masterId = resolveMasterId(actionData.id);
+        const existing = nextEvents.find((e) => e.id === masterId);
+        if (existing) {
+          calendarActions.push({
+            id: uuid(),
+            type: "DELETE_EVENT",
+            timestamp,
+            source: "ai",
+            explanation,
+            payload: { event: existing },
+          });
+          nextEvents = nextEvents.filter((e) => e.id !== masterId);
+        }
+      }
+    }
+
+    applyActions(store, calendarActions, nextEvents);
+
+    return {
+      success: true,
+      message: `Reorganized schedule with ${calendarActions.length} changes.`,
+      actionCount: calendarActions.length,
+    };
+  },
+});
+
+export const tamboTools = [
+  createCalendarEvent,
+  getCalendarEvents,
+  updateCalendarEvent,
+  deleteCalendarEvent,
+  reorganizeEvents,
 ];

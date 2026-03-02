@@ -434,7 +434,6 @@ export function GoogleCalendarSync() {
             console.error("Error creating Google event", err);
         }
     }, [propagateGoogleEventIdToQueue, setActionHistory, setEvents, setRedoStack]);
-    }, [propagateGoogleEventIdToQueue, setActionHistory, setEvents, setRedoStack]);
 
     const handleEventUpdated = useCallback(async (action: CalendarAction) => {
         const { after } = action.payload as any;

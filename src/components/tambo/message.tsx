@@ -1,4 +1,4 @@
-/* eslint-disable react-refresh/only-export-components */
+/* eslint-disable react-refresh/only-export-components -- this module re-exports a few non-component helpers for convenience */
 
 import { type TamboThreadMessage, type TamboToolUseContent } from "@tambo-ai/react";
 import {

@@ -1,6 +1,6 @@
 "use client";
 
-/* eslint-disable react-refresh/only-export-components */
+/* eslint-disable react-refresh/only-export-components -- this module exports a hook/type alongside the modal component */
 
 import { createMarkdownComponents } from "@/components/tambo/message";
 import { cn } from "@/lib/utils";

@@ -1,7 +1,7 @@
 "use client";
 
-/* eslint-disable react-refresh/only-export-components */
-/* eslint-disable react-hooks/refs */
+/* eslint-disable react-refresh/only-export-components -- this module exports helper types/utils alongside the TextEditor component */
+/* eslint-disable react-hooks/refs -- TipTap extensions intentionally use ref-backed callbacks to avoid recreating the editor */
 
 import * as Popover from "@radix-ui/react-popover";
 import { cn } from "@/lib/utils";

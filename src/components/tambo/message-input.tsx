@@ -1,6 +1,6 @@
 "use client";
 
-/* eslint-disable react-refresh/only-export-components */
+/* eslint-disable react-refresh/only-export-components -- this module exports variants/types alongside components */
 
 import { useTamboMcpPrompt } from "@tambo-ai/react/mcp";
 import { ElicitationUI } from "@/components/tambo/elicitation-ui";

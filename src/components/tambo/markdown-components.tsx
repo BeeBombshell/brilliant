@@ -1,6 +1,6 @@
 "use client";
 
-/* eslint-disable react-refresh/only-export-components */
+/* eslint-disable react-refresh/only-export-components -- this file exports a streamdown component-map factory (not a React component) */
 
 import { cn } from "@/lib/utils";
 import DOMPurify from "dompurify";

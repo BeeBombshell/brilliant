@@ -2,7 +2,7 @@ import { useEffect, useCallback, useRef } from "react";
 import { useAtom } from "jotai";
 import { v4 as uuid } from "uuid";
 import { useGoogleAuth } from "@/contexts/GoogleAuthContext";
-import { calendarActionQueueAtom } from "@/state/calendarEffects";
+import { calendarActionQueueAtom, propagateGoogleEventIdToQueueAtom } from "@/state/calendarEffects";
 import { eventsAtom, pendingDeletesAtom, actionHistoryAtom, redoStackAtom } from "@/state/calendarAtoms";
 import type { CalendarEvent, CalendarAction, RecurrenceRule, EventAttendee, EventPerson, EventColor } from "@/types/calendar";
 
@@ -171,6 +171,7 @@ export function GoogleCalendarSync() {
     const [, setEvents] = useAtom(eventsAtom);
     const [actionQueue, setActionQueue] = useAtom(calendarActionQueueAtom);
     const [pendingDeletes, setPendingDeletes] = useAtom(pendingDeletesAtom);
+    const [, propagateGoogleEventIdToQueue] = useAtom(propagateGoogleEventIdToQueueAtom);
     const [, setActionHistory] = useAtom(actionHistoryAtom);
     const [, setRedoStack] = useAtom(redoStackAtom);
     const queueRetryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -427,47 +428,13 @@ export function GoogleCalendarSync() {
                 return a;
             }));
 
-            // Update any pending actions in the queue that might be waiting for this ID.
-            // Separately track pending deletes so we don't re-add events while a delete is in-flight.
-            let hasPendingDelete = false;
-
-            setActionQueue(prev =>
-                prev.map(a => {
-                    // If it's a delete for this event
-                    if (a.type === 'DELETE_EVENT' && (a.payload as any).event.id === event.id) {
-                        hasPendingDelete = true;
-                        return {
-                            ...a,
-                            payload: {
-                                ...a.payload,
-                                event: { ...(a.payload as any).event, googleEventId }
-                            }
-                        };
-                    }
-                    // If it's an update for this event
-                    if ((a.type === 'UPDATE_EVENT' || a.type === 'MOVE_EVENT') && (a.payload as any).before.id === event.id) {
-                        return {
-                            ...a,
-                            payload: {
-                                ...a.payload,
-                                before: { ...(a.payload as any).before, googleEventId },
-                                after: { ...(a.payload as any).after, googleEventId }
-                            }
-                        };
-                    }
-                    return a;
-                })
-            );
-
-            if (hasPendingDelete) {
-                setPendingDeletes(pd => pd.includes(googleEventId) ? pd : [...pd, googleEventId]);
-            }
+            propagateGoogleEventIdToQueue({ localEventId: event.id, googleEventId });
 
             console.log("Successfully created Google event", response.result.id);
         } catch (err) {
             console.error("Error creating Google event", err);
         }
-    }, [setEvents]);
+    }, [propagateGoogleEventIdToQueue, setActionHistory, setEvents, setRedoStack]);
 
     const handleEventUpdated = useCallback(async (action: CalendarAction) => {
         const { after } = action.payload as any;

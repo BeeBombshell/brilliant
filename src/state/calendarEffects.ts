@@ -1,5 +1,5 @@
 import { atom } from 'jotai';
-import { actionHistoryAtom, redoStackAtom } from './calendarAtoms';
+import { actionHistoryAtom, pendingDeletesAtom, redoStackAtom } from './calendarAtoms';
 import type { CalendarAction } from '@/types/calendar';
 
 function ensureUniqueActionTimestamps(actions: CalendarAction[]): CalendarAction[] {
@@ -38,6 +38,65 @@ function ensureUniqueActionTimestamps(actions: CalendarAction[]): CalendarAction
 
 // Queue atom that components can subscribe to for side effects
 export const calendarActionQueueAtom = atom<CalendarAction[]>([]);
+
+function propagateGoogleEventIdToQueue(
+  queue: CalendarAction[],
+  params: { localEventId: string; googleEventId: string }
+): { queue: CalendarAction[]; hasPendingDelete: boolean; changed: boolean } {
+  let changed = false;
+  let hasPendingDelete = false;
+
+  const nextQueue = queue.map((a) => {
+    if (a.type === 'DELETE_EVENT' && a.payload.event.id === params.localEventId) {
+      hasPendingDelete = true;
+      changed = true;
+      return {
+        ...a,
+        payload: {
+          ...a.payload,
+          event: { ...a.payload.event, googleEventId: params.googleEventId },
+        },
+      };
+    }
+
+    if (
+      (a.type === 'UPDATE_EVENT' || a.type === 'MOVE_EVENT') &&
+      a.payload.before.id === params.localEventId
+    ) {
+      changed = true;
+      return {
+        ...a,
+        payload: {
+          ...a.payload,
+          before: { ...a.payload.before, googleEventId: params.googleEventId },
+          after: { ...a.payload.after, googleEventId: params.googleEventId },
+        },
+      };
+    }
+
+    return a;
+  });
+
+  return { queue: changed ? nextQueue : queue, hasPendingDelete, changed };
+}
+
+export const propagateGoogleEventIdToQueueAtom = atom(
+  null,
+  (get, set, params: { localEventId: string; googleEventId: string }) => {
+    const prevQueue = get(calendarActionQueueAtom);
+    const { queue: nextQueue, hasPendingDelete, changed } = propagateGoogleEventIdToQueue(prevQueue, params);
+
+    if (changed) {
+      set(calendarActionQueueAtom, nextQueue);
+    }
+
+    if (hasPendingDelete) {
+      set(pendingDeletesAtom, (prev) =>
+        prev.includes(params.googleEventId) ? prev : [...prev, params.googleEventId]
+      );
+    }
+  }
+);
 
 // Write-only atom that executes actions and triggers effects
 export const executeCalendarActionAtom = atom(

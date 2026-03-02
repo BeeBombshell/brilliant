@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useRef } from "react";
-import { getDefaultStore, useAtom } from "jotai";
+import { useAtom } from "jotai";
 import { v4 as uuid } from "uuid";
 import { useGoogleAuth } from "@/contexts/GoogleAuthContext";
 import { calendarActionQueueAtom } from "@/state/calendarEffects";
@@ -429,14 +429,13 @@ export function GoogleCalendarSync() {
 
             // Update any pending actions in the queue that might be waiting for this ID.
             // Separately track pending deletes so we don't re-add events while a delete is in-flight.
-            const hasPendingDelete = getDefaultStore()
-                .get(calendarActionQueueAtom)
-                .some(a => a.type === 'DELETE_EVENT' && (a.payload as any).event.id === event.id);
+            let hasPendingDelete = false;
 
-            setActionQueue(prev => {
-                return prev.map(a => {
+            setActionQueue(prev =>
+                prev.map(a => {
                     // If it's a delete for this event
                     if (a.type === 'DELETE_EVENT' && (a.payload as any).event.id === event.id) {
+                        hasPendingDelete = true;
                         return {
                             ...a,
                             payload: {
@@ -457,8 +456,8 @@ export function GoogleCalendarSync() {
                         };
                     }
                     return a;
-                });
-            });
+                })
+            );
 
             if (hasPendingDelete) {
                 setPendingDeletes(pd => pd.includes(googleEventId) ? pd : [...pd, googleEventId]);

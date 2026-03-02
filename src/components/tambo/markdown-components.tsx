@@ -129,7 +129,6 @@ const CodeHeader = ({
  */
 export const createMarkdownComponents = (): Record<
   string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   React.ComponentType<any>
 > => ({
   code: function Code({ className, children, ...props }) {

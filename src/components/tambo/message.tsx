@@ -428,11 +428,13 @@ ToolcallInfo.displayName = "ToolcallInfo";
  * Used for MCP sampling sub-threads.
  */
 const SamplingSubThread = ({
+  parentMessageId,
   titleText = "finished additional work",
 }: {
   parentMessageId: string;
   titleText?: string;
 }) => {
+  void parentMessageId;
   const [isExpanded, setIsExpanded] = React.useState(false);
   const samplingDetailsId = React.useId();
 

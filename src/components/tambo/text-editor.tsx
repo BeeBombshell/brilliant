@@ -1,6 +1,7 @@
 "use client";
 
 /* eslint-disable react-refresh/only-export-components */
+/* eslint-disable react-hooks/refs */
 
 import * as Popover from "@radix-ui/react-popover";
 import { cn } from "@/lib/utils";

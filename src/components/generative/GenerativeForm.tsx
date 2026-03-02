@@ -1,8 +1,8 @@
-import { useState, useId, useCallback, useMemo } from "react";
+import { useState, useRef, useId, useCallback, useMemo, useEffect } from "react";
 import { z } from "zod";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { useTamboComponentState, useTamboThread } from "@tambo-ai/react";
+import { useTamboComponentState, useTamboThreadInput, TamboThreadInputProvider } from "@tambo-ai/react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +21,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Field, FieldDescription, FieldError } from "@/components/ui/field";
 import { DateTimePicker } from "@/components/ui/datetime-picker";
+import { DatePicker } from "@/components/ui/date-picker";
+import { TimePicker } from "@/components/ui/time-picker";
 import { IconCheck, IconClipboard, IconSparkles } from "@tabler/icons-react";
 
 function safeMarkdownUrlTransform(url: string): string {
@@ -405,10 +407,15 @@ function FormFieldRenderer({
 
             {/* Render the appropriate input */}
             {(field.type === "text" || field.type === "email" || field.type === "number" ||
-                field.type === "tel" || field.type === "url" || field.type === "password" ||
-                field.type === "date" || field.type === "time") && (
+                field.type === "tel" || field.type === "url" || field.type === "password") && (
                     <TextInputField field={field} value={value} onChange={onChange} />
                 )}
+            {field.type === "date" && (
+                <DatePicker value={value} onChange={onChange} placeholder={field.placeholder ?? undefined} />
+            )}
+            {field.type === "time" && (
+                <TimePicker value={value} onChange={onChange} placeholder={field.placeholder ?? undefined} />
+            )}
             {field.type === "datetime-local" && (
                 <DateTimePicker value={value} onChange={onChange} />
             )}
@@ -456,33 +463,43 @@ function FormProgress({ current, total }: { current: number; total: number }) {
     );
 }
 
-// --- Main GenerativeForm component ---
+// --- Main GenerativeFormContent component ---
 
-export function GenerativeForm({
+function GenerativeFormContent({
     title,
     description,
     fields,
     submitLabel,
     sections,
 }: GenerativeFormProps) {
-    // Build initial values map from defaults
-    const initialValues = useMemo(() => {
-        const vals: Record<string, string> = {};
-        fields?.forEach((f) => {
-            if (f.id) vals[f.id] = f.defaultValue ?? "";
-        });
-        return vals;
-    }, [fields]);
+    // Use useTamboComponentState to persist form values across re-renders during streaming
+    const [persistedValues, setValues] = useTamboComponentState<Record<string, string>>("values", {});
+    const values = useMemo(() => persistedValues ?? {}, [persistedValues]);
 
-    // Use plain useState for values — useTamboComponentState doesn't support functional updaters
-    const [values, setValues] = useState<Record<string, string>>(initialValues);
+    // Keep a stable ref to current values so handleChange can read without stale closures.
+    // (useTamboComponentState's setter doesn't support functional updaters)
+    const valuesRef = useRef(values);
+    useEffect(() => {
+        valuesRef.current = values;
+    }, [values]);
+
+    const getResolvedValue = useCallback((field: FormFieldDef) => {
+        if (!field.id) return "";
+        const persisted = values[field.id];
+        // Only return defaultValue if the value is strictly undefined in state.
+        // If it's empty string, it means the user cleared it.
+        if (persisted !== undefined) return persisted;
+        return field.defaultValue ?? (field as any).default ?? "";
+    }, [values]);
+
     const [submitted, setSubmitted] = useTamboComponentState<boolean>("submitted", false);
     const [errors, setErrors] = useState<Record<string, string>>({});
 
-    const { sendThreadMessage } = useTamboThread();
+    // useTamboThreadInput now refers to the LOCAL provider we wrap around the form
+    const { setValue: setInputValue, submit } = useTamboThreadInput();
 
     const handleChange = useCallback((fieldId: string, value: string) => {
-        setValues((prev) => ({ ...prev, [fieldId]: value }));
+        setValues({ ...valuesRef.current, [fieldId]: value });
         // Clear error on change
         setErrors((prev) => {
             if (!prev[fieldId]) return prev;
@@ -490,13 +507,13 @@ export function GenerativeForm({
             delete next[fieldId];
             return next;
         });
-    }, []);
+    }, [setValues]);
 
     const validate = useCallback(() => {
         const newErrors: Record<string, string> = {};
         fields?.forEach((f) => {
             if (!f.id) return;
-            const val = values[f.id] ?? "";
+            const val = getResolvedValue(f);
             if (f.required && !val.trim()) {
                 newErrors[f.id] = `${f.label ?? 'Field'} is required`;
             }
@@ -521,12 +538,10 @@ export function GenerativeForm({
             }
         });
         return newErrors;
-    }, [fields, values]);
-
-
+    }, [fields, getResolvedValue]);
 
     const handleSubmit = useCallback(
-        (e: React.FormEvent) => {
+        async (e: React.FormEvent) => {
             e.preventDefault();
             const validationErrors = validate();
             if (Object.keys(validationErrors).length > 0) {
@@ -535,15 +550,27 @@ export function GenerativeForm({
             }
 
             const summary = (fields ?? [])
-                .filter((f) => f.id && values[f.id])
-                .map((f) => `- **${f.label ?? f.id}**: ${values[f.id!]}`)
+                .filter((f) => f.id)
+                .map((f) => {
+                    const val = getResolvedValue(f);
+                    return `- **${f.label ?? f.id}**: ${val}`;
+                })
                 .join("\n");
 
             const message = `Form "${title ?? "Untitled"}" submitted with the following responses:\n${summary}`;
-            sendThreadMessage(message, { streamResponse: true });
-            setSubmitted(true);
+
+            try {
+                // Set the value in our LOCAL input provider and submit
+                setInputValue(message);
+
+                // Trigger the submission via the local provider
+                await submit();
+                setSubmitted(true);
+            } catch (error) {
+                console.error("Failed to submit form:", error);
+            }
         },
-        [validate, setSubmitted, fields, values, title, sendThreadMessage]
+        [validate, fields, getResolvedValue, title, setInputValue, submit, setSubmitted]
     );
 
     const isFormReady = useMemo(() => {
@@ -567,7 +594,7 @@ export function GenerativeForm({
             <div key={fieldId} className="w-full animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
                 <FormFieldRenderer
                     field={field}
-                    value={values[fieldId] ?? ""}
+                    value={getResolvedValue(field)}
                     onChange={(v) => handleChange(fieldId, v)}
                     error={errors[fieldId]}
                 />
@@ -626,7 +653,7 @@ export function GenerativeForm({
                     <div className="space-y-3">
                         {fields.map((f) => {
                             if (!f.id) return null;
-                            const val = values[f.id];
+                            const val = getResolvedValue(f);
                             if (!val) return null;
                             return (
                                 <div key={f.id} className="flex flex-col gap-1 rounded-xl bg-muted/30 px-4 py-3">
@@ -649,7 +676,7 @@ export function GenerativeForm({
     const totalSections = hasSections ? sections.length : 1;
 
     return (
-        <div className="w-full rounded-[24px] border border-white/[0.08] bg-white/[0.03] backdrop-blur-md overflow-hidden shadow-2xl transition-all duration-500 hover:border-white/[0.12]">
+        <div className="w-full rounded-[24px] border border-white/[0.08] bg-white/[0.03] backdrop-blur-md overflow-hidden shadow-2xl transition-all duration-500 hover:border-white/[0.12] pointer-events-auto relative z-10">
             {/* Form header */}
             <div className="p-4 border-b border-white/[0.05] bg-white/[0.01]">
                 <div className="flex flex-col items-start gap-3">
@@ -778,3 +805,13 @@ export function GenerativeForm({
         </div>
     );
 }
+
+export function GenerativeForm(props: GenerativeFormProps) {
+    return (
+        <TamboThreadInputProvider>
+            <GenerativeFormContent {...props} />
+        </TamboThreadInputProvider>
+    );
+}
+
+

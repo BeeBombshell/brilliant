@@ -45,50 +45,27 @@ const ACTION_LABELS: Record<string, { active: string; done: string }> = {
 };
 
 function getStableOrderedMessages(messages: any[]) {
-  const entries = messages.map((message, index) => ({ message, index }));
   const parseCreatedAtMs = (value: unknown) => {
     if (!value) return null;
     const ms = new Date(value as any).getTime();
     return Number.isFinite(ms) ? ms : null;
   };
 
-  const createdAtMs = entries.map((e) => parseCreatedAtMs(e.message?.createdAt));
-  const hasAnyCreatedAt = createdAtMs.some((ms) => ms !== null);
-  if (!hasAnyCreatedAt) return messages;
+  return [...messages]
+    .map((message, index) => ({ message, index }))
+    .sort((a, b) => {
+      const timeA = parseCreatedAtMs(a.message?.createdAt);
+      const timeB = parseCreatedAtMs(b.message?.createdAt);
 
-  const prevAnchor: Array<{ time: number; index: number } | null> = new Array(entries.length).fill(null);
-  let anchor: { time: number; index: number } | null = null;
-  for (let i = 0; i < entries.length; i++) {
-    const time = createdAtMs[i];
-    if (time !== null) {
-      anchor = { time, index: entries[i].index };
-    }
-    prevAnchor[i] = anchor;
-  }
+      // If either message doesn't have a usable timestamp, keep SDK order.
+      // This prevents optimistic/streaming messages from jumping around.
+      if (timeA === null || timeB === null) {
+        return a.index - b.index;
+      }
 
-  const nextAnchor: Array<{ time: number; index: number } | null> = new Array(entries.length).fill(null);
-  anchor = null;
-  for (let i = entries.length - 1; i >= 0; i--) {
-    const time = createdAtMs[i];
-    if (time !== null) {
-      anchor = { time, index: entries[i].index };
-    }
-    nextAnchor[i] = anchor;
-  }
-
-  const withSortTimes = entries.map((e, i) => {
-    const time = createdAtMs[i];
-    if (time !== null) {
-      return { ...e, sortTime: time };
-    }
-
-    const nearestAnchor = prevAnchor[i] ?? nextAnchor[i];
-    const sortTime = nearestAnchor ? nearestAnchor.time - nearestAnchor.index + e.index : e.index;
-    return { ...e, sortTime };
-  });
-
-  withSortTimes.sort((a, b) => a.sortTime - b.sortTime || a.index - b.index);
-  return withSortTimes.map((e) => e.message);
+      return timeA - timeB || a.index - b.index;
+    })
+    .map((e) => e.message);
 }
 
 function ToolCallBadge({ block, isStreaming }: { block: any; isStreaming: boolean }) {

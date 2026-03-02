@@ -7,8 +7,6 @@ import type { Suggestion, TamboThreadMessage } from "@tambo-ai/react";
 import {
   useTambo,
   useTamboSuggestions,
-  useTamboThreadInput,
-  TamboThreadInputProvider,
 } from "@tambo-ai/react";
 import { AnimatePresence, motion } from "framer-motion";
 import * as React from "react";
@@ -26,14 +24,12 @@ import { useEffect } from "react";
 interface MessageSuggestionsContextValue {
   suggestions: Suggestion[];
   selectedSuggestionId: string | null;
-  accept: (options: { suggestion: Suggestion }) => Promise<void>;
-  submit: () => Promise<void | any>;
+  submitSuggestion: (suggestion: Suggestion) => Promise<void>;
   isGenerating: boolean;
   error: Error | null;
   messages: TamboThreadMessage[];
   isStreaming: boolean;
   isMac: boolean;
-  setValue: (value: string) => void;
 }
 
 /**
@@ -75,6 +71,9 @@ export interface MessageSuggestionsProps extends React.HTMLAttributes<HTMLDivEle
 /**
  * The root container for message suggestions.
  * It establishes the context for its children and handles overall state management.
+*
+* Note: this component expects a shared `TamboThreadInputProvider` to be present
+* higher in the tree (typically wrapping both `MessageSuggestions` and `MessageInput`).
  * @component MessageSuggestions
  * @example
  * ```tsx
@@ -99,17 +98,15 @@ const MessageSuggestions = React.forwardRef<
     ref,
   ) => {
     return (
-      <TamboThreadInputProvider>
-        <MessageSuggestionsContent
-          ref={ref}
-          maxSuggestions={maxSuggestions}
-          initialSuggestions={initialSuggestions}
-          className={className}
-          {...props}
-        >
-          {children}
-        </MessageSuggestionsContent>
-      </TamboThreadInputProvider>
+      <MessageSuggestionsContent
+        ref={ref}
+        maxSuggestions={maxSuggestions}
+        initialSuggestions={initialSuggestions}
+        className={className}
+        {...props}
+      >
+        {children}
+      </MessageSuggestionsContent>
     );
   },
 );
@@ -157,35 +154,34 @@ const MessageSuggestionsContent = React.forwardRef<
     const isMac =
       typeof navigator !== "undefined" && navigator.platform.startsWith("Mac");
 
-    const { submit, setValue } = useTamboThreadInput();
+    const submitSuggestion = React.useCallback(
+      async (suggestion: Suggestion) => {
+        if (isStreaming || isGenerating) return;
+        await accept({ suggestion, shouldSubmit: true });
+      },
+      [accept, isGenerating, isStreaming],
+    );
 
     const contextValue = React.useMemo(
       () => ({
         suggestions,
         selectedSuggestionId,
-        accept,
-        submit,
+        submitSuggestion,
         isGenerating,
         error,
         messages,
         isStreaming,
         isMac,
-        setValue: (val: string) => {
-          console.log("Setting suggestion value:", val);
-          setValue(val);
-        },
       }),
       [
         suggestions,
         selectedSuggestionId,
-        accept,
-        submit,
+        submitSuggestion,
         isGenerating,
         error,
         messages,
         isStreaming,
         isMac,
-        setValue,
       ],
     );
 
@@ -205,15 +201,8 @@ const MessageSuggestionsContent = React.forwardRef<
             const suggestionIndex = keyNum - 1;
             void (async () => {
               const suggestion = suggestions[suggestionIndex];
-              await accept({ suggestion });
-
-              const textToSet = (suggestion as any).text || (suggestion as any).prompt || (suggestion as any).content || suggestion.title;
-              if (textToSet) {
-                setValue(textToSet);
-              }
-
               try {
-                await submit();
+                await submitSuggestion(suggestion);
               } catch (e) {
                 console.error("Shortcut submission failed", e);
               }
@@ -227,7 +216,7 @@ const MessageSuggestionsContent = React.forwardRef<
       return () => {
         document.removeEventListener("keydown", handleKeyDown);
       };
-    }, [suggestions, accept, isMac, setValue, submit]);
+    }, [suggestions, isMac, submitSuggestion]);
 
     // If we have no messages yet and no initial suggestions, render nothing
     if (!messages.length && initialSuggestions.length === 0) {
@@ -326,7 +315,7 @@ const MessageSuggestionsList = React.forwardRef<
   HTMLDivElement,
   MessageSuggestionsListProps
 >(({ className, ...props }, ref) => {
-  const { suggestions, selectedSuggestionId, submit, isGenerating, isMac, isStreaming, setValue } =
+  const { suggestions, selectedSuggestionId, submitSuggestion, isGenerating, isMac, isStreaming } =
     useMessageSuggestionsContext();
 
   const modKey = isMac ? "⌘" : "Ctrl";
@@ -379,27 +368,15 @@ const MessageSuggestionsList = React.forwardRef<
                   }),
                 )}
                 onClick={async () => {
-                  console.log("Suggestion clicked:", suggestion);
                   if (!isGenerating && !isStreaming) {
                     try {
-                      const textToSet = (suggestion as any).text || (suggestion as any).prompt || (suggestion as any).content || suggestion.title;
-
-                      if (textToSet) {
-                        setValue(textToSet);
-                      }
-
-                      // Small delay to ensure state updates have propagated
-                      await new Promise(resolve => setTimeout(resolve, 80));
-
-                      console.log("Submitting suggestion text...");
-                      await submit();
+                      await submitSuggestion(suggestion);
                     } catch (e) {
                       console.error("Suggestion submission failed", e);
-                      await submit().catch(() => { });
                     }
                   }
                 }}
-                disabled={isGenerating}
+                disabled={isGenerating || isStreaming}
                 data-suggestion-id={suggestion.id}
                 data-suggestion-index={index}
               >

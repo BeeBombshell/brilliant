@@ -7,8 +7,8 @@ import { Check, Loader2 } from "lucide-react";
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { ThreadHistoryPanel } from "@/components/chat/ThreadHistoryPanel";
 
-import { useTambo, useTamboThreadList } from "@tambo-ai/react";
-import type { Suggestion, TamboToolUseContent, Content, TextContent, UseTamboReturn } from "@tambo-ai/react";
+import { TamboThreadInputProvider, useTambo, useTamboThreadList } from "@tambo-ai/react";
+import type { Content, Suggestion, TamboToolUseContent, TextContent, UseTamboReturn } from "@tambo-ai/react";
 import { checkpointsAtom, eventsAtom, actionHistoryAtom, chatThreadIdAtom } from "@/state/calendarAtoms";
 import { useGoogleAuth } from "@/contexts/GoogleAuthContext";
 
@@ -417,31 +417,33 @@ export function ChatPane({ onClose }: ChatPaneProps) {
 
 
           <div className="p-3 pt-1">
-            <MessageInput variant="solid" className="w-full">
-              <MessageSuggestions
-                className="px-0 pb-2"
-                initialSuggestions={(
-                  [
-                    { id: "1", title: "Show my schedule for today", messageId: "init", detailedSuggestion: "Show my schedule for today" },
-                    { id: "2", title: "What's on my calendar this week?", messageId: "init", detailedSuggestion: "What's on my calendar this week?" },
-                    { id: "3", title: "Organize my afternoon", messageId: "init", detailedSuggestion: "Organize my afternoon" },
-                  ] satisfies Suggestion[]
-                )}
-              >
-                <MessageSuggestionsStatus />
-                <MessageSuggestionsList />
-              </MessageSuggestions>
-              <MessageInputTextarea
-                placeholder="What do you need on your calendar?"
-                className="text-sm min-h-[44px]"
-              />
-              <MessageInputToolbar>
-                <MessageInputFileButton />
-                <div className="flex-1" />
-                <MessageInputSubmitButton />
-              </MessageInputToolbar>
-              <MessageInputError />
-            </MessageInput>
+            <TamboThreadInputProvider>
+              <MessageInput variant="solid" className="w-full">
+                <MessageSuggestions
+                  className="px-0 pb-2"
+                  initialSuggestions={(
+                    [
+                      { id: "1", title: "Show my schedule for today", messageId: "init", detailedSuggestion: "Show my schedule for today" },
+                      { id: "2", title: "What's on my calendar this week?", messageId: "init", detailedSuggestion: "What's on my calendar this week?" },
+                      { id: "3", title: "Organize my afternoon", messageId: "init", detailedSuggestion: "Organize my afternoon" },
+                    ] satisfies Suggestion[]
+                  )}
+                >
+                  <MessageSuggestionsStatus />
+                  <MessageSuggestionsList />
+                </MessageSuggestions>
+                <MessageInputTextarea
+                  placeholder="What do you need on your calendar?"
+                  className="text-sm min-h-[44px]"
+                />
+                <MessageInputToolbar>
+                  <MessageInputFileButton />
+                  <div className="flex-1" />
+                  <MessageInputSubmitButton />
+                </MessageInputToolbar>
+                <MessageInputError />
+              </MessageInput>
+            </TamboThreadInputProvider>
           </div>
         </div>
       </ErrorBoundary>

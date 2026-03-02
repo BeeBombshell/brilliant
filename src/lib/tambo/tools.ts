@@ -20,7 +20,7 @@ import {
   UpdateEventOutputSchema,
   DeleteEventSchema,
   DeleteEventOutputSchema,
-  ReorganizeEventsSchema,
+  BatchCalendarSchema,
   ReorganizeOutputSchema,
 } from "./schemas";
 
@@ -97,7 +97,7 @@ function ensureDateTime(dateStr: string, fallbackTime: string): Date {
 const createCalendarEvent = defineTool({
   name: "createCalendarEvent",
   description:
-    "Create a new event in the user's calendar, optionally with recurrence. Also use this for recurring events.",
+    "Create a single new event. For multiple creates/updates/deletes, use batchCalendarUpdate instead.",
   inputSchema: CreateEventSchema,
   outputSchema: CreateEventOutputSchema,
   tool: async ({
@@ -188,7 +188,7 @@ const getCalendarEvents = defineTool({
 const updateCalendarEvent = defineTool({
   name: "updateCalendarEvent",
   description:
-    "Update an existing calendar event or modify its recurrence pattern",
+    "Update a single existing event. For multiple changes, use batchCalendarUpdate instead.",
   inputSchema: UpdateEventSchema,
   outputSchema: UpdateEventOutputSchema,
   tool: async (patch) => {
@@ -241,7 +241,8 @@ const updateCalendarEvent = defineTool({
 
 const deleteCalendarEvent = defineTool({
   name: "deleteCalendarEvent",
-  description: "Remove an event from the calendar",
+  description:
+    "Delete a single event. For multiple changes, use batchCalendarUpdate instead.",
   inputSchema: DeleteEventSchema,
   outputSchema: DeleteEventOutputSchema,
   tool: async ({ id }) => {
@@ -271,30 +272,57 @@ const deleteCalendarEvent = defineTool({
   },
 });
 
-const reorganizeEvents = defineTool({
-  name: "reorganizeEvents",
+const batchCalendarUpdate = defineTool({
+  name: "batchCalendarUpdate",
   description:
-    "Perform multiple calendar actions (create, update, delete) at once to reorganize the schedule",
-  inputSchema: ReorganizeEventsSchema,
+    "PREFERRED tool when the user's request involves 2 or more changes. " +
+    "Pass all operations as a JSON array string. " +
+    "Always use this instead of calling individual tools multiple times.",
+  inputSchema: BatchCalendarSchema,
   outputSchema: ReorganizeOutputSchema,
-  tool: async ({ actions, explanation }) => {
+  tool: async ({ operations, explanation }) => {
+    // Parse the JSON string
+    let ops: Array<Record<string, unknown>>;
+    try {
+      ops = JSON.parse(operations);
+    } catch {
+      return {
+        success: false,
+        message: "Invalid JSON in operations string.",
+        actionCount: 0,
+      };
+    }
+
+    if (!Array.isArray(ops) || ops.length === 0) {
+      return {
+        success: false,
+        message: "operations must be a non-empty JSON array.",
+        actionCount: 0,
+      };
+    }
+
     const store = getDefaultStore();
     const timestamp = new Date().toISOString();
     const calendarActions: CalendarAction[] = [];
     let nextEvents = [...store.get(eventsAtom)];
 
-    for (const actionData of actions) {
-      if (actionData.type === "create") {
+    for (const entry of ops) {
+      if (!entry || typeof entry !== "object") continue;
+      const op = entry.op as string;
+
+      if (op === "create") {
+        const title = entry.title as string;
+        const startDate = entry.startDate as string;
+        const endDate = entry.endDate as string;
+        if (!title || !startDate || !endDate) continue;
+
         const event = buildCalendarEvent({
-          summary: actionData.event.summary,
-          startDateTime: actionData.event.startDateTime,
-          endDateTime: actionData.event.endDateTime,
-          description: actionData.event.description,
-          location: actionData.event.location,
-          attendees: actionData.event.attendees,
-          color: actionData.event.color,
-          meetingLinkRequested: actionData.event.meetingLinkRequested,
-          recurrence: actionData.event.recurrence as RecurrenceRule | undefined,
+          summary: title,
+          startDateTime: startDate,
+          endDateTime: endDate,
+          description: entry.description as string | undefined,
+          color: entry.color as string | undefined,
+          location: entry.location as string | undefined,
         });
         calendarActions.push({
           id: uuid(),
@@ -305,58 +333,69 @@ const reorganizeEvents = defineTool({
           payload: { event },
         });
         nextEvents.push(event);
-      } else if (actionData.type === "update") {
-        const masterId = resolveMasterId(actionData.patch.id);
+      } else if (op === "update") {
+        const id = entry.id as string;
+        if (!id) continue;
+
+        const masterId = resolveMasterId(id);
         const existing = nextEvents.find((e) => e.id === masterId);
-        if (existing) {
-          const updated: CalendarEvent = {
-            ...existing,
-            title: actionData.patch.title ?? existing.title,
-            startDate: actionData.patch.startDate ?? existing.startDate,
-            endDate: actionData.patch.endDate ?? existing.endDate,
-            description: actionData.patch.description ?? existing.description,
-            location: actionData.patch.location ?? existing.location,
-            attendees: actionData.patch.attendees
-              ? actionData.patch.attendees.map((email) => ({ email }))
-              : existing.attendees,
-            color: (actionData.patch.color as EventColor) ?? existing.color,
-            meetingLinkRequested:
-              actionData.patch.meetingLinkRequested ??
-              existing.meetingLinkRequested,
-            meta: { source: "ai" },
-          };
-          calendarActions.push({
-            id: uuid(),
-            type: "UPDATE_EVENT",
-            timestamp,
-            source: "ai",
-            explanation,
-            payload: { before: existing, after: updated },
-          });
-          nextEvents = nextEvents.map((e) => (e.id === masterId ? updated : e));
-        }
-      } else if (actionData.type === "delete") {
-        const masterId = resolveMasterId(actionData.id);
+        if (!existing) continue;
+
+        const updated: CalendarEvent = {
+          ...existing,
+          title: (entry.title as string) ?? existing.title,
+          startDate: (entry.startDate as string) ?? existing.startDate,
+          endDate: (entry.endDate as string) ?? existing.endDate,
+          description: (entry.description as string) ?? existing.description,
+          location: (entry.location as string) ?? existing.location,
+          color: (entry.color as EventColor) ?? existing.color,
+          attendees: existing.attendees,
+          meetingLinkRequested: existing.meetingLinkRequested,
+          recurrence: existing.recurrence,
+          meta: { source: "ai" },
+        };
+        calendarActions.push({
+          id: uuid(),
+          type: "UPDATE_EVENT",
+          timestamp,
+          source: "ai",
+          explanation,
+          payload: { before: existing, after: updated },
+        });
+        nextEvents = nextEvents.map((e) => (e.id === masterId ? updated : e));
+      } else if (op === "delete") {
+        const id = entry.id as string;
+        if (!id) continue;
+
+        const masterId = resolveMasterId(id);
         const existing = nextEvents.find((e) => e.id === masterId);
-        if (existing) {
-          calendarActions.push({
-            id: uuid(),
-            type: "DELETE_EVENT",
-            timestamp,
-            source: "ai",
-            explanation,
-            payload: { event: existing },
-          });
-          nextEvents = nextEvents.filter((e) => e.id !== masterId);
-        }
+        if (!existing) continue;
+
+        calendarActions.push({
+          id: uuid(),
+          type: "DELETE_EVENT",
+          timestamp,
+          source: "ai",
+          explanation,
+          payload: { event: existing },
+        });
+        nextEvents = nextEvents.filter((e) => e.id !== masterId);
       }
+    }
+
+    if (calendarActions.length === 0) {
+      return {
+        success: false,
+        message: "No valid operations found. Check JSON format and event IDs.",
+        actionCount: 0,
+      };
     }
 
     applyActions(store, calendarActions, nextEvents);
 
     return {
       success: true,
-      message: `Reorganized schedule with ${calendarActions.length} changes.`,
+      message: `Applied ${calendarActions.length} changes.`,
       actionCount: calendarActions.length,
     };
   },
@@ -367,5 +406,5 @@ export const tamboTools = [
   getCalendarEvents,
   updateCalendarEvent,
   deleteCalendarEvent,
-  reorganizeEvents,
+  batchCalendarUpdate,
 ];

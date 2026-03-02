@@ -563,40 +563,25 @@ export function GoogleCalendarSync() {
     }
   }, []);
 
-  // Sync to Google (queue processor)
+  // Sync to Google (queue processor — batch-drain)
   useEffect(() => {
     if (!isAuthenticated || actionQueue.length === 0) return;
 
-    const processQueue = async () => {
-      const action = actionQueue[0];
+    const processAction = async (action: CalendarAction): Promise<boolean> => {
+      if (action.source === "system") return true;
 
-      // Skip processing for actions already synced from system or otherwise ignored
-      if (action.source === "system") {
-        setActionQueue((prev) => prev.slice(1));
-        return;
-      }
-
-      if (queueRetryTimeoutRef.current) {
-        clearTimeout(queueRetryTimeoutRef.current);
-        queueRetryTimeoutRef.current = null;
-      }
-
-      let ok = false;
       try {
         switch (action.type) {
           case "ADD_EVENT":
             await handleEventCreated(action);
-            ok = true;
-            break;
+            return true;
           case "UPDATE_EVENT":
           case "MOVE_EVENT":
             await handleEventUpdated(action);
-            ok = true;
-            break;
+            return true;
           case "DELETE_EVENT": {
             const event = action.payload.event;
             if (event.googleEventId) {
-              // Mark as pending delete to prevent sync re-adds
               setPendingDeletes((prev) =>
                 prev.includes(event.googleEventId!)
                   ? prev
@@ -604,27 +589,60 @@ export function GoogleCalendarSync() {
               );
               await handleEventDeleted(action);
             }
-            ok = true;
-            break;
+            return true;
           }
+          default:
+            return true;
         }
-      } catch (error) {
+      } catch (err) {
         if (import.meta.env.DEV) {
-          console.error("Error syncing action to Google:", error);
+          console.error("Error syncing action to Google:", err);
         }
-      } finally {
-        if (ok) {
-          setActionQueue((prev) => prev.slice(1));
-        } else if (!queueRetryTimeoutRef.current) {
-          queueRetryTimeoutRef.current = setTimeout(() => {
-            queueRetryTimeoutRef.current = null;
-            setActionQueue((prev) => [...prev]);
-          }, 2000);
-        }
+        return false;
       }
     };
 
-    processQueue();
+    const drainQueue = async () => {
+      // Take all queued actions and clear the queue immediately
+      const batch = [...actionQueue];
+      setActionQueue([]);
+
+      if (queueRetryTimeoutRef.current) {
+        clearTimeout(queueRetryTimeoutRef.current);
+        queueRetryTimeoutRef.current = null;
+      }
+
+      // Process in chunks of 5 for rate-limit safety
+      const CONCURRENCY = 5;
+      const failed: CalendarAction[] = [];
+
+      for (let i = 0; i < batch.length; i += CONCURRENCY) {
+        const chunk = batch.slice(i, i + CONCURRENCY);
+        const results = await Promise.allSettled(
+          chunk.map((action) => processAction(action)),
+        );
+
+        results.forEach((result, idx) => {
+          if (
+            result.status === "rejected" ||
+            (result.status === "fulfilled" && !result.value)
+          ) {
+            failed.push(chunk[idx]);
+          }
+        });
+      }
+
+      // Re-queue failures for retry
+      if (failed.length > 0) {
+        queueRetryTimeoutRef.current = setTimeout(() => {
+          queueRetryTimeoutRef.current = null;
+          setActionQueue((prev) => [...failed, ...prev]);
+        }, 2000);
+      }
+    };
+
+    drainQueue();
+
     return () => {
       if (queueRetryTimeoutRef.current) {
         clearTimeout(queueRetryTimeoutRef.current);

@@ -103,29 +103,22 @@ export const DeleteEventSchema = z.object({
   id: z.string().describe("ID of the event to delete"),
 });
 
-export const ReorganizeEventsSchema = z.object({
-  actions: z
-    .array(
-      z.discriminatedUnion("type", [
-        z.object({
-          type: z.literal("create"),
-          event: CreateEventSchema,
-        }),
-        z.object({
-          type: z.literal("update"),
-          patch: UpdateEventSchema,
-        }),
-        z.object({
-          type: z.literal("delete"),
-          id: z.string(),
-        }),
-      ]),
-    )
-    .describe("Array of actions to apply to the calendar"),
+export const BatchCalendarSchema = z.object({
+  operations: z
+    .string()
+    .describe(
+      'JSON array of operations. Each object must have an "op" field: ' +
+        '"create" (requires title, startDate, endDate), ' +
+        '"update" (requires id, plus any changed fields: title, startDate, endDate, description, location, color), ' +
+        '"delete" (requires id). ' +
+        'Example: [{"op":"create","title":"Lunch","startDate":"2026-03-04T12:00:00+05:30","endDate":"2026-03-04T13:00:00+05:30"},' +
+        '{"op":"update","id":"abc","startDate":"2026-03-05T10:00:00+05:30"},' +
+        '{"op":"delete","id":"xyz"}]',
+    ),
   explanation: z
     .string()
     .optional()
-    .describe("Brief explanation of the reorganization logic"),
+    .describe("Brief explanation of the changes"),
 });
 
 // --- Tool Output Schemas ---

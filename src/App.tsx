@@ -3,7 +3,12 @@ import { useAtom, useAtomValue } from "jotai";
 import { format, startOfWeek, endOfWeek } from "date-fns";
 import { TamboProvider } from "@tambo-ai/react";
 
-import { eventsAtom, selectedDateAtom, viewAtom } from "@/state/calendarAtoms";
+import {
+  eventsAtom,
+  selectedDateAtom,
+  viewAtom,
+  expandedEventsAtom,
+} from "@/state/calendarAtoms";
 import { tamboTools } from "./lib/tambo/tools";
 import { tamboComponents } from "./lib/tambo";
 import {
@@ -53,7 +58,7 @@ export default App;
 
 function AppWithTambo() {
   const { user } = useGoogleAuth();
-  const events = useAtomValue(eventsAtom);
+  const expandedEvents = useAtomValue(expandedEventsAtom);
   const selectedDate = useAtomValue(selectedDateAtom);
   const view = useAtomValue(viewAtom);
 
@@ -100,40 +105,67 @@ function AppWithTambo() {
         },
         upcomingEventsContext: () => {
           const now = new Date();
-          const todayStart = new Date(
-            now.getFullYear(),
-            now.getMonth(),
-            now.getDate(),
-          );
-          const todayEnd = new Date(todayStart.getTime() + 86400000);
 
-          const todayEvents = events
+          // expandedEventsAtom includes padding (e.g. ±7 days for week view),
+          // so filter down to the exact view range before sending to AI
+          const weekOpts2 = { weekStartsOn: 0 as const };
+          let viewStart: Date;
+          let viewEnd: Date;
+          switch (view) {
+            case "week":
+              viewStart = startOfWeek(selectedDate, weekOpts2);
+              viewEnd = endOfWeek(selectedDate, weekOpts2);
+              viewEnd = new Date(viewEnd.getTime() + 86400000 - 1); // end of day
+              break;
+            case "month":
+              viewStart = new Date(
+                selectedDate.getFullYear(),
+                selectedDate.getMonth(),
+                1,
+              );
+              viewEnd = new Date(
+                selectedDate.getFullYear(),
+                selectedDate.getMonth() + 1,
+                0,
+                23,
+                59,
+                59,
+              );
+              break;
+            default: // day
+              viewStart = new Date(
+                selectedDate.getFullYear(),
+                selectedDate.getMonth(),
+                selectedDate.getDate(),
+              );
+              viewEnd = new Date(viewStart.getTime() + 86400000 - 1);
+          }
+
+          const visibleEvents = expandedEvents
             .filter((e) => {
-              const start = new Date(e.startDate);
-              const end = new Date(e.endDate);
-              return start < todayEnd && end > todayStart;
+              const s = new Date(e.startDate);
+              const d = new Date(e.endDate);
+              return s <= viewEnd && d >= viewStart;
             })
-            .sort(
-              (a, b) =>
-                new Date(a.startDate).getTime() -
-                new Date(b.startDate).getTime(),
-            )
-            .slice(0, 10)
+            .slice(0, 30)
             .map((e) => ({
               id: e.id,
               title: e.title,
               startDate: e.startDate,
               endDate: e.endDate,
               color: e.color,
+              description: e.description,
+              location: e.location,
             }));
 
           return {
-            todayEventCount: todayEvents.length,
-            todayEvents,
+            eventCount: visibleEvents.length,
+            visibleEvents,
+            currentTime: now.toISOString(),
             description:
-              todayEvents.length > 0
-                ? `The user has ${todayEvents.length} events today: ${todayEvents.map((e) => e.title).join(", ")}`
-                : "The user has no events today.",
+              visibleEvents.length > 0
+                ? `There are ${visibleEvents.length} events visible on the calendar: ${visibleEvents.map((e) => `"${e.title}" (id: ${e.id})`).join(", ")}. Use the event IDs with calendar tools to update or delete events.`
+                : "No events visible on the current calendar view.",
           };
         },
       }}

@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable react-refresh/only-export-components */
+
 import { cn } from "@/lib/utils";
 import DOMPurify from "dompurify";
 import hljs from "highlight.js";

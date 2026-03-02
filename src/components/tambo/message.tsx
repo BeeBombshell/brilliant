@@ -1,3 +1,5 @@
+/* eslint-disable react-refresh/only-export-components */
+
 import { type TamboThreadMessage, type TamboToolUseContent } from "@tambo-ai/react";
 import {
   Message as MessageBase,
@@ -206,7 +208,7 @@ export interface MessageContentProps
  * @component MessageContent
  */
 const MessageContent = React.forwardRef<HTMLDivElement, MessageContentProps>(
-  ({ className, content, markdown = true, ...props }, ref) => {
+  ({ className, content, markdown: enableMarkdown = true, ...props }, ref) => {
     const stringContent = convertContentToMarkdown(content);
 
     return (
@@ -222,7 +224,6 @@ const MessageContent = React.forwardRef<HTMLDivElement, MessageContentProps>(
           {
             content: contentToRender,
             markdownContent,
-            markdown,
             isLoading,
             isCancelled,
             isReasoning,
@@ -245,7 +246,7 @@ const MessageContent = React.forwardRef<HTMLDivElement, MessageContentProps>(
               {...renderProps}
               className={cn(
                 "wrap-break-word",
-                !markdown && "whitespace-pre-wrap",
+                !enableMarkdown && "whitespace-pre-wrap",
                 renderProps.className,
               )}
               data-slot="message-content-text"
@@ -253,7 +254,7 @@ const MessageContent = React.forwardRef<HTMLDivElement, MessageContentProps>(
               <MessageContentRenderer
                 contentToRender={contentToRender || stringContent}
                 markdownContent={markdownContent || stringContent}
-                markdown={markdown}
+                markdown={enableMarkdown}
               />
               {isCancelled && (
                 <span className="text-muted-foreground text-xs">cancelled</span>
@@ -427,7 +428,6 @@ ToolcallInfo.displayName = "ToolcallInfo";
  * Used for MCP sampling sub-threads.
  */
 const SamplingSubThread = ({
-  parentMessageId: _parentMessageId,
   titleText = "finished additional work",
 }: {
   parentMessageId: string;
@@ -743,8 +743,16 @@ function ToolResultText({
 }) {
   if (!text) return null;
 
+  let parsed: unknown;
+  let parsedOk = false;
   try {
-    const parsed = JSON.parse(text);
+    parsed = JSON.parse(text);
+    parsedOk = true;
+  } catch {
+    parsedOk = false;
+  }
+
+  if (parsedOk) {
     return (
       <pre
         className={cn(
@@ -756,11 +764,11 @@ function ToolResultText({
         </code>
       </pre>
     );
-  } catch {
-    // JSON parsing failed, render as markdown or plain text
-    if (!enableMarkdown) return text;
-    return <Streamdown components={markdownComponents}>{text}</Streamdown>;
   }
+
+  // JSON parsing failed, render as markdown or plain text
+  if (!enableMarkdown) return text;
+  return <Streamdown components={markdownComponents}>{text}</Streamdown>;
 }
 
 /**

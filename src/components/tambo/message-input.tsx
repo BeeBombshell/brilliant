@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable react-refresh/only-export-components */
+
 import { useTamboMcpPrompt } from "@tambo-ai/react/mcp";
 import { ElicitationUI } from "@/components/tambo/elicitation-ui";
 import {
@@ -229,11 +231,11 @@ const MessageInputTextarea = ({
   // Resource names are extracted from editor at submit time, no need to track in state
   const setResourceNames = React.useCallback(
     (
-      _resourceNames:
+      resourceNames:
         | Record<string, string>
         | ((prev: Record<string, string>) => Record<string, string>),
     ) => {
-      // No-op - we extract resource names directly from editor at submit time
+      String(resourceNames);
     },
     [],
   );
@@ -810,7 +812,6 @@ const MessageInputMcpResourceButton = React.forwardRef<
           <McpResourceButton
             ref={ref}
             {...props}
-            value={value}
             onInsertResource={insertResourceReference}
           />
         );

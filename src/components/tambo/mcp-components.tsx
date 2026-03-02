@@ -418,8 +418,6 @@ function ResourceListContent({
 export interface McpResourceButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   /** Callback to insert text into the input */
   onInsertResource: (id: string, label: string) => void;
-  /** Current input value */
-  value: string;
   /** Optional custom className */
   className?: string;
 }
@@ -439,7 +437,7 @@ export interface McpResourceButtonProps extends React.ButtonHTMLAttributes<HTMLB
 export const McpResourceButton = React.forwardRef<
   HTMLButtonElement,
   McpResourceButtonProps
->(({ className, onInsertResource, value: _value, ...props }, ref) => {
+>(({ className, onInsertResource, ...props }, ref) => {
   const { data: resourceList, isLoading } = useTamboMcpResourceList();
   const [isOpen, setIsOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");

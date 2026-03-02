@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable react-refresh/only-export-components */
+
 import * as Popover from "@radix-ui/react-popover";
 import { cn } from "@/lib/utils";
 import Document from "@tiptap/extension-document";
@@ -245,7 +247,7 @@ function checkMentionExists(editor: Editor, label: string): boolean {
 function createResourceMentionConfig(
   onSearchChange: (query: string) => void,
   onSelect: (item: ResourceItem) => void,
-  stateRef: React.MutableRefObject<SuggestionRef<ResourceItem>>,
+  getStateRef: () => SuggestionRef<ResourceItem>,
 ): Omit<SuggestionOptions, "editor"> {
   return {
     char: "@",
@@ -268,7 +270,7 @@ function createResourceMentionConfig(
 
       return {
         onStart: (props) => {
-          stateRef.current.setState({
+          getStateRef().setState({
             isOpen: true,
             selectedIndex: 0,
             position: getPositionFromClientRect(props.clientRect),
@@ -276,14 +278,14 @@ function createResourceMentionConfig(
           });
         },
         onUpdate: (props) => {
-          stateRef.current.setState({
+          getStateRef().setState({
             position: getPositionFromClientRect(props.clientRect),
             command: createWrapCommand(props.editor, props.command),
             selectedIndex: 0,
           });
         },
         onKeyDown: ({ event }) => {
-          const { state, setState } = stateRef.current;
+          const { state, setState } = getStateRef();
           if (!state.isOpen) return false;
 
           const handlers: Record<string, () => boolean> = {
@@ -325,7 +327,7 @@ function createResourceMentionConfig(
           return false;
         },
         onExit: () => {
-          stateRef.current.setState({ isOpen: false });
+          getStateRef().setState({ isOpen: false });
         },
       };
     },
@@ -335,7 +337,7 @@ function createResourceMentionConfig(
 function createPromptCommandExtension(
   onSearchChange: (query: string) => void,
   onSelect: (item: PromptItem) => void,
-  stateRef: React.MutableRefObject<SuggestionRef<PromptItem>>,
+  getStateRef: () => SuggestionRef<PromptItem>,
 ) {
   return Extension.create({
     name: "promptCommand",
@@ -348,7 +350,7 @@ function createPromptCommandExtension(
           items: ({ query, editor }) => {
             const editorValue = editor.getText().replace("/", "").trim();
             if (editorValue.length > 0) {
-              stateRef.current.setState({ isOpen: false });
+              getStateRef().setState({ isOpen: false });
               return [];
             }
             onSearchChange(query);
@@ -366,7 +368,7 @@ function createPromptCommandExtension(
                   });
                   onSelect(item);
                 };
-                stateRef.current.setState({
+                getStateRef().setState({
                   isOpen: true,
                   selectedIndex: 0,
                   position: getPositionFromClientRect(props.clientRect),
@@ -381,14 +383,14 @@ function createPromptCommandExtension(
                   });
                   onSelect(item);
                 };
-                stateRef.current.setState({
+                getStateRef().setState({
                   position: getPositionFromClientRect(props.clientRect),
                   command: createCommand,
                   selectedIndex: 0,
                 });
               },
               onKeyDown: ({ event }) => {
-                const { state, setState } = stateRef.current;
+                const { state, setState } = getStateRef();
                 if (!state.isOpen) return false;
 
                 const handlers: Record<string, () => boolean> = {
@@ -431,7 +433,7 @@ function createPromptCommandExtension(
                 return false;
               },
               onExit: () => {
-                stateRef.current.setState({ isOpen: false });
+                getStateRef().setState({ isOpen: false });
               },
             };
           },
@@ -568,16 +570,18 @@ export const TextEditor = React.forwardRef<TamboEditor, TextEditorProps>(
             class: "mention resource inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground",
           },
           suggestion: createResourceMentionConfig(
-            (q) => callbacksRef.current.onSearchResources(q),
-            (i) => callbacksRef.current.onResourceSelect(i),
-            resourceRef
+            onSearchResources,
+            onResourceSelect,
+            // eslint-disable-next-line react-hooks/refs
+            () => resourceRef.current,
           ),
           renderLabel: ({ node }) => `@${(node.attrs.label as string) ?? ""}`,
         }),
         createPromptCommandExtension(
-          (q) => callbacksRef.current.onSearchPrompts(q),
-          (i) => callbacksRef.current.onPromptSelect(i),
-          promptRef
+          onSearchPrompts,
+          onPromptSelect,
+          // eslint-disable-next-line react-hooks/refs
+          () => promptRef.current,
         ),
       ],
       content: value,

@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable react-refresh/only-export-components */
+
 import { createMarkdownComponents } from "@/components/tambo/message";
 import { cn } from "@/lib/utils";
 import {

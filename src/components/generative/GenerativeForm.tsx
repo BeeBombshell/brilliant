@@ -1,4 +1,4 @@
-import { useState, useRef, useId, useCallback, useMemo } from "react";
+import { useState, useRef, useId, useCallback, useMemo, useEffect } from "react";
 import { z } from "zod";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -474,12 +474,14 @@ function GenerativeFormContent({
 }: GenerativeFormProps) {
     // Use useTamboComponentState to persist form values across re-renders during streaming
     const [persistedValues, setValues] = useTamboComponentState<Record<string, string>>("values", {});
-    const values = persistedValues ?? {};
+    const values = useMemo(() => persistedValues ?? {}, [persistedValues]);
 
     // Keep a stable ref to current values so handleChange can read without stale closures.
     // (useTamboComponentState's setter doesn't support functional updaters)
     const valuesRef = useRef(values);
-    valuesRef.current = values;
+    useEffect(() => {
+        valuesRef.current = values;
+    }, [values]);
 
     const getResolvedValue = useCallback((field: FormFieldDef) => {
         if (!field.id) return "";

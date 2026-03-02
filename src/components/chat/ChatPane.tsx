@@ -8,6 +8,7 @@ import { ChatHeader } from "@/components/chat/ChatHeader";
 import { ThreadHistoryPanel } from "@/components/chat/ThreadHistoryPanel";
 
 import { useTambo, useTamboThreadList } from "@tambo-ai/react";
+import type { Suggestion, TamboToolUseContent, Content, UseTamboReturn } from "@tambo-ai/react";
 import { checkpointsAtom, eventsAtom, actionHistoryAtom, chatThreadIdAtom } from "@/state/calendarAtoms";
 import { useGoogleAuth } from "@/contexts/GoogleAuthContext";
 
@@ -44,18 +45,18 @@ const ACTION_LABELS: Record<string, { active: string; done: string }> = {
   reorganizeEvents: { active: "Reorganizing schedule", done: "Schedule reorganized" },
 };
 
-function getStableOrderedMessages(messages: any[]) {
+function getStableOrderedMessages(messages: UseTamboReturn["messages"]) {
   const parseCreatedAtMs = (value: unknown) => {
     if (!value) return null;
-    const ms = new Date(value as any).getTime();
+    const ms = new Date(String(value)).getTime();
     return Number.isFinite(ms) ? ms : null;
   };
 
   return [...messages]
     .map((message, index) => ({ message, index }))
     .sort((a, b) => {
-      const timeA = parseCreatedAtMs(a.message?.createdAt);
-      const timeB = parseCreatedAtMs(b.message?.createdAt);
+      const timeA = parseCreatedAtMs(a.message.createdAt);
+      const timeB = parseCreatedAtMs(b.message.createdAt);
 
       // If either message doesn't have a usable timestamp, keep SDK order.
       // This prevents optimistic/streaming messages from jumping around.
@@ -68,9 +69,9 @@ function getStableOrderedMessages(messages: any[]) {
     .map((e) => e.message);
 }
 
-function ToolCallBadge({ block, isStreaming }: { block: any; isStreaming: boolean }) {
-  const toolName = block.name || "";
-  const labels = ACTION_LABELS[toolName] || { active: `Running ${toolName}`, done: `${toolName}` };
+function ToolCallBadge({ block, isStreaming }: { block: TamboToolUseContent; isStreaming: boolean }) {
+  const toolName = block.name || "tool";
+  const labels = ACTION_LABELS[toolName] || { active: `Running ${toolName}`, done: toolName };
   const label = isStreaming ? labels.active : labels.done;
 
   return (
@@ -92,6 +93,10 @@ function ToolCallBadge({ block, isStreaming }: { block: any; isStreaming: boolea
   );
 }
 
+function isToolUseBlock(block: Content): block is TamboToolUseContent {
+  return block.type === "tool_use";
+}
+
 interface ChatPaneProps {
   onClose?: () => void;
 }
@@ -107,8 +112,7 @@ export function ChatPane({ onClose }: ChatPaneProps) {
     startNewThread,
     switchThread,
     isIdle,
-  } = useTambo() as any;
-
+  } = useTambo() satisfies UseTamboReturn;
 
   const { data: threadListData } = useTamboThreadList();
 
@@ -201,13 +205,12 @@ export function ChatPane({ onClose }: ChatPaneProps) {
   };
 
   const threadHistoryItems = useMemo(() => {
-    const rawThreads = (threadListData as any)?.threads || (threadListData as any)?.items || (Array.isArray(threadListData) ? threadListData : (threadListData as any)?.data || []);
-    if (!Array.isArray(rawThreads)) return [];
+    const rawThreads = threadListData?.threads ?? [];
 
-    return rawThreads.map((t: any) => ({
+    return rawThreads.map((t) => ({
       id: t.id,
-      title: t.name || t.threadName || t.title || t.metadata?.name || `Chat ${t.id.substring(0, 8)}`,
-      timestamp: t.updatedAt || t.lastUpdatedAt || t.createdAt || new Date().toISOString(),
+      title: t.name || `Chat ${t.id.substring(0, 8)}`,
+      timestamp: t.updatedAt || t.createdAt,
     }));
   }, [threadListData]);
 
@@ -326,7 +329,7 @@ export function ChatPane({ onClose }: ChatPaneProps) {
                 const isUser = role === "user";
 
                 const toolBlocks = Array.isArray(message.content)
-                  ? message.content.filter((b: any) => b.type === "tool_use")
+                  ? message.content.filter(isToolUseBlock)
                   : [];
 
                 return (
@@ -358,7 +361,7 @@ export function ChatPane({ onClose }: ChatPaneProps) {
                           </div>
                         ) : (
                           <div className="flex flex-col gap-2 w-full max-w-[95%]">
-                            {(Array.isArray(message.content) ? (message.content as any[]).some(b => b.type === "text" || b.type === "resource") : (typeof message.content === "string" && (message.content as string).length > 0)) ? (
+                            {message.content.some((b) => b.type === "text" || b.type === "resource") ? (
                               <div className="bg-gray-100 dark:bg-[#2a2a2e] border border-border/50 text-foreground shadow-sm rounded-[20px] rounded-tl-[4px] px-4 py-3 text-[14px] leading-relaxed">
                                 <MessageContent
                                   content={message.content}
@@ -369,7 +372,7 @@ export function ChatPane({ onClose }: ChatPaneProps) {
 
                             {toolBlocks.length > 0 && (
                               <div className="flex flex-wrap gap-1.5 py-1">
-                                {toolBlocks.map((block: any, bIdx: number) => (
+                                {toolBlocks.map((block, bIdx) => (
                                   <ToolCallBadge
                                     key={bIdx}
                                     block={block}
@@ -409,11 +412,13 @@ export function ChatPane({ onClose }: ChatPaneProps) {
             <MessageInput variant="solid" className="w-full">
               <MessageSuggestions
                 className="px-0 pb-2"
-                initialSuggestions={[
-                  { id: "1", title: "Show my schedule for today", messageId: "init", detailedSuggestion: "Show my schedule for today" } as any,
-                  { id: "2", title: "What's on my calendar this week?", messageId: "init", detailedSuggestion: "What's on my calendar this week?" } as any,
-                  { id: "3", title: "Organize my afternoon", messageId: "init", detailedSuggestion: "Organize my afternoon" } as any,
-                ]}
+                initialSuggestions={(
+                  [
+                    { id: "1", title: "Show my schedule for today", messageId: "init", detailedSuggestion: "Show my schedule for today" },
+                    { id: "2", title: "What's on my calendar this week?", messageId: "init", detailedSuggestion: "What's on my calendar this week?" },
+                    { id: "3", title: "Organize my afternoon", messageId: "init", detailedSuggestion: "Organize my afternoon" },
+                  ] satisfies Suggestion[]
+                )}
               >
                 <MessageSuggestionsStatus />
                 <MessageSuggestionsList />

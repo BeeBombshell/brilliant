@@ -2,6 +2,7 @@
 
 import { useTambo } from "@tambo-ai/react";
 import { cn } from "@/lib/utils";
+import { useMergeRefs } from "@/lib/thread-hooks";
 import * as React from "react";
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 
@@ -33,8 +34,7 @@ export const ScrollableMessageContainer = React.forwardRef<
   const [shouldAutoscroll, setShouldAutoscroll] = useState(true);
   const lastScrollTopRef = useRef(0);
 
-  // Handle forwarded ref
-  React.useImperativeHandle(ref, () => scrollContainerRef.current!, []);
+  const mergedRef = useMergeRefs(ref, scrollContainerRef);
 
   // Create a dependency that represents all content that should trigger autoscroll
   const messagesContent = useMemo(() => {
@@ -92,7 +92,7 @@ export const ScrollableMessageContainer = React.forwardRef<
 
   return (
     <div
-      ref={scrollContainerRef}
+      ref={mergedRef}
       onScroll={handleScroll}
       className={cn(
         "flex-1 overflow-y-auto",

@@ -28,10 +28,25 @@ export default function DictationButton() {
   };
 
   useEffect(() => {
-    if (transcript && transcript !== lastProcessedTranscriptRef.current) {
-      lastProcessedTranscriptRef.current = transcript;
-      setValue((prev) => prev + " " + transcript);
-    }
+    const nextTranscript = transcript?.trim();
+    if (!nextTranscript) return;
+
+    const prevTranscript = lastProcessedTranscriptRef.current;
+    if (nextTranscript === prevTranscript) return;
+
+    lastProcessedTranscriptRef.current = nextTranscript;
+
+    setValue((prevValue) => {
+      let toAppend = nextTranscript;
+
+      if (prevTranscript && nextTranscript.startsWith(prevTranscript)) {
+        toAppend = nextTranscript.slice(prevTranscript.length).trimStart();
+        if (!toAppend) return prevValue;
+      }
+
+      const trimmedPrevValue = prevValue.trimEnd();
+      return trimmedPrevValue ? `${trimmedPrevValue} ${toAppend}` : toAppend;
+    });
   }, [transcript, setValue]);
 
   if (isTranscribing) {
@@ -44,7 +59,9 @@ export default function DictationButton() {
 
   return (
     <div className="flex flex-row items-center gap-2">
-      <span className="text-sm text-red-500">{transcriptionError}</span>
+      {transcriptionError ? (
+        <span className="text-sm text-red-500">{transcriptionError}</span>
+      ) : null}
       {isRecording ? (
         <Tooltip content="Stop">
           <button

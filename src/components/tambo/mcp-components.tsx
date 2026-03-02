@@ -429,8 +429,9 @@ export interface McpResourceButtonProps extends React.ButtonHTMLAttributes<HTMLB
  * @example
  * ```tsx
  * <McpResourceButton
- *   value={inputValue}
- *   onInsertText={(text) => setInputValue(text)}
+*   onInsertResource={(id, label) => {
+*     // Insert `id` or `label` into your editor/input here
+*   }}
  * />
  * ```
  */

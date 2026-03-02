@@ -235,7 +235,8 @@ const MessageInputTextarea = ({
         | Record<string, string>
         | ((prev: Record<string, string>) => Record<string, string>),
     ) => {
-      String(resourceNames);
+      // Intentionally no-op: resource names are extracted directly from the editor at submit time.
+      return resourceNames;
     },
     [],
   );

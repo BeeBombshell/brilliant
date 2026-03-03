@@ -493,6 +493,7 @@ function GenerativeFormContent({
     }, [values]);
 
     const [submitted, setSubmitted] = useTamboComponentState<boolean>("submitted", false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
 
     // useTamboThreadInput now refers to the LOCAL provider we wrap around the form
@@ -543,6 +544,7 @@ function GenerativeFormContent({
     const handleSubmit = useCallback(
         async (e: React.FormEvent) => {
             e.preventDefault();
+            if (submitted || isSubmitting) return;
             const validationErrors = validate();
             if (Object.keys(validationErrors).length > 0) {
                 setErrors(validationErrors);
@@ -560,6 +562,7 @@ function GenerativeFormContent({
             const message = `Form "${title ?? "Untitled"}" submitted with the following responses:\n${summary}`;
 
             try {
+                setIsSubmitting(true);
                 // Set the value in our LOCAL input provider and submit
                 setInputValue(message);
 
@@ -568,9 +571,11 @@ function GenerativeFormContent({
                 setSubmitted(true);
             } catch (error) {
                 console.error("Failed to submit form:", error);
+            } finally {
+                setIsSubmitting(false);
             }
         },
-        [validate, fields, getResolvedValue, title, setInputValue, submit, setSubmitted]
+        [validate, fields, getResolvedValue, title, setInputValue, submit, setSubmitted, submitted, isSubmitting]
     );
 
     const isFormReady = useMemo(() => {
@@ -791,10 +796,11 @@ function GenerativeFormContent({
                     <div className="px-4 pb-4 pt-1">
                         <Button
                             type="submit"
+                            disabled={submitted || isSubmitting}
                             className="group relative w-full sm:w-auto overflow-hidden rounded-xl px-6 h-10 font-bold text-sm transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-primary/20"
                         >
                             <span className="relative z-10 flex items-center gap-2">
-                                {submitLabel ?? "Submit"}
+                                {isSubmitting ? "Submitting..." : (submitLabel ?? "Submit")}
                                 <IconSparkles size={14} className="opacity-0 group-hover:opacity-100 transition-opacity animate-pulse" />
                             </span>
                             <div className="absolute inset-0 bg-gradient-to-r from-primary to-primary/80 transition-opacity group-hover:opacity-90" />
@@ -813,5 +819,4 @@ export function GenerativeForm(props: GenerativeFormProps) {
         </TamboThreadInputProvider>
     );
 }
-
 
